@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TheLightPath | Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Smooth transitions for all theme and hover changes */
+        body { background-color: #f8f9fa; transition: background-color 0.3s, color 0.3s; }
+        .dashboard-header { background-color: #2c3e50; color: white; padding: 20px 0; margin-bottom: 30px; position: relative; transition: background-color 0.3s;}
+        
+        /* Interactive Card Animations */
+        .card { box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: none; transition: transform 0.3s ease, box-shadow 0.3s ease; }
+        .card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.15); }
+        
+        /* Interactive Button Animations */
+        .btn { transition: all 0.2s ease-in-out; }
+        .btn:hover { transform: scale(1.02); filter: brightness(1.1); }
+
+        /* Standard UI Elements */
+        .ai-warning { background-color: #fff3cd; border-left: 5px solid #ffc107; padding: 15px; }
+        .intervention { background-color: #d1ecf1; border-left: 5px solid #17a2b8; padding: 15px; margin-top: 10px; }
+        .risk-meter { height: 8px; border-radius: 4px; background: #e9ecef; overflow: hidden; }
+        .risk-meter > div { height: 100%; background: linear-gradient(to right, #28a745, #ffc107, #dc3545); }
+        .meta { font-size: 0.85rem; color: #6c757d; }
+
+        /* --- Dark Mode Overrides --- */
+        body.dark-mode { background-color: #121212; color: #e0e0e0; }
+        body.dark-mode .dashboard-header { background-color: #1e1e1e; border-bottom: 1px solid #333; }
+        body.dark-mode .card { background-color: #1e1e1e; color: #e0e0e0; border: 1px solid #333; }
+        body.dark-mode .text-secondary { color: #aaa !important; }
+        body.dark-mode .ai-warning { background-color: #332b00; border-left: 5px solid #ffc107; color: #ddd; }
+        body.dark-mode .intervention { background-color: #002b36; border-left: 5px solid #17a2b8; color: #ddd; }
+        body.dark-mode .modal-content { background-color: #1e1e1e; color: #e0e0e0; border: 1px solid #444; }
+        body.dark-mode .form-control, body.dark-mode .form-select { background-color: #2c2c2c; color: white; border-color: #444; }
+        body.dark-mode .form-control::placeholder { color: #888; }
+        body.dark-mode .risk-meter { background: #333; }
+    </style>
+</head>
+<body>
+
+<div class="dashboard-header text-center">
+    <div class="position-absolute top-0 end-0 p-3 d-flex gap-2">
+        <button id="themeToggle" class="btn btn-outline-light btn-sm fw-bold shadow-sm">🌙 Dark Mode</button>
+        <a href="/logout" class="btn btn-outline-light btn-sm fw-bold shadow-sm">Logout</a>
+    </div>
+    
+    <h1>TheLightPath</h1>
+    <p class="mb-1">Proactive Habit Tracking &amp; Intervention</p>
+    <p class="mb-0">
+        Welcome, <strong>{{ user.username if user else 'guest' }}</strong>
+        &mdash; {{ today.strftime('%A, %d %B %Y') }}
+    </p>
+</div>
+
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="m-0 text-secondary">Your Active Habits</h3>
+        <button type="button" class="btn btn-primary fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#addHabitModal">
+            + Add New Habit
+        </button>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        {% for message in messages %}
+          <div class="alert alert-dark alert-dismissible fade show fw-bold shadow-sm" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    {% if habits %}
+    <div class="card mb-4 p-3 shadow-sm">
+        <h5 class="text-secondary mb-3">AI Risk Analytics (Current Targets)</h5>
+        <div style="position: relative; height:200px; width:100%">
+            <canvas id="riskChart"></canvas>
+        </div>
+    </div>
+    {% else %}
+        <div class="alert alert-info shadow-sm">No habits tracked yet. Click "+ Add New Habit" to get started!</div>
+    {% endif %}
+
+    <div class="row">
+        {% for h in habits %}
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="d-flex align-items-center mb-1">
+                                <h4 class="card-title mb-0 me-2">{{ h.name }}</h4>
+                                <form action="/delete_habit/{{ h.id }}" method="POST" class="m-0" onsubmit="return confirm('Are you sure you want to permanently delete this target and all its historical tracking data?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Delete Habit">🗑️</button>
+                                </form>
+                            </div>
+                            <span class="badge bg-secondary">{{ h.category }}</span>
+                        </div>
+                        <div class="text-end">
+                            {% if h.today_status == 1 %}
+                                <span class="badge bg-success rounded-pill d-block mb-1">Completed today</span>
+                            {% elif h.today_status == 0 %}
+                                <span class="badge bg-danger rounded-pill d-block mb-1">Missed today</span>
+                            {% else %}
+                                <span class="badge bg-secondary rounded-pill d-block mb-1">Pending</span>
+                            {% endif %}
+                            <span class="badge bg-warning text-dark px-2 py-1 shadow-sm">🔥 {{ h.streak }} Day Streak</span>
+                        </div>
+                    </div>
+
+                    <div class="mt-3 meta">
+                        Predicted failure risk: <strong>{{ '%.0f' | format(h.prob_fail * 100) }}%</strong>
+                        {% if h.used_fallback %}
+                            <em>(rule-based fallback &mdash; insufficient 3-day history)</em>
+                        {% endif %}
+                    </div>
+                    <div class="risk-meter mt-1 shadow-sm">
+                        <div style="width: {{ '%.0f' | format(h.prob_fail * 100) }}%;"></div>
+                    </div>
+
+                    {% if h.today_status != 1 %}
+                    <form action="/check_in/{{ h.id }}" method="POST" class="mt-3">
+                        <button type="submit" class="btn btn-outline-success btn-sm w-100 fw-bold shadow-sm">✓ Mark as Done Today</button>
+                    </form>
+                    {% endif %}
+
+                    {% if h.at_risk %}
+                        <div class="ai-warning mt-3 shadow-sm">
+                            <strong>Intervention triggered.</strong>
+                            Risk &ge; {{ '%.0f' | format(threshold * 100) }}% threshold.
+                        </div>
+                        {% if h.intervention %}
+                            <div class="intervention shadow-sm">
+                                <strong>{{ h.intervention.type | replace('_', ' ') | title }}:</strong> 
+                                {{ h.intervention.message }}
+                                {% if h.intervention.source %}
+                                    <br><small class="text-muted">&mdash; {{ h.intervention.source }}</small>
+                                {% endif %}
+                            </div>
+                        {% else %}
+                            <div class="alert alert-warning mt-2 mb-0 shadow-sm">
+                                No library entry for category <em>{{ h.category }}</em>.
+                                Run <code>python seed_interventions.py</code>.
+                            </div>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %} </div>
+</div>
+
+<div class="modal fade" id="addHabitModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-dark text-white">
+        <h5 class="modal-title">Create a New Target</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form action="/add_habit" method="POST">
+          <div class="mb-3">
+            <label class="form-label fw-bold">Habit Name</label>
+            <input type="text" class="form-control" name="habit_name" placeholder="e.g., Read 10 Pages" required>
+          </div>
+          <div class="mb-4">
+            <label class="form-label fw-bold">Category</label>
+            <select class="form-select" name="category" required>
+              <option value="" disabled selected>Select an area of focus...</option>
+              <option value="Health">Health</option>
+              <option value="Learning">Learning</option>
+              <option value="Productivity">Productivity</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary w-100 fw-bold shadow-sm">Start Tracking</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    // 1. Theme Toggle Logic
+    const themeBtn = document.getElementById('themeToggle');
+    
+    function setDarkMode(isDark) {
+        if(isDark) {
+            document.body.classList.add('dark-mode');
+            themeBtn.innerText = '☀️ Light Mode';
+            localStorage.setItem('theme', 'dark');
+        } else {
+            document.body.classList.remove('dark-mode');
+            themeBtn.innerText = '🌙 Dark Mode';
+            localStorage.setItem('theme', 'light');
+        }
+    }
+
+    // Check for saved theme preference on page load
+    if(localStorage.getItem('theme') === 'dark') {
+        setDarkMode(true);
+    }
+
+    themeBtn.addEventListener('click', () => {
+        const isCurrentlyDark = document.body.classList.contains('dark-mode');
+        setDarkMode(!isCurrentlyDark);
+        
+        // Re-render chart to match theme if it exists
+        if(typeof riskChart !== 'undefined') {
+            updateChartTheme(!isCurrentlyDark);
+        }
+    });
+
+    // 2. Dynamic Chart.js Implementation
+    {% if habits %}
+    const ctx = document.getElementById('riskChart').getContext('2d');
+    
+    // Pulling real data directly from your Flask backend
+    const habitNames = [ {% for h in habits %} "{{ h.name }}", {% endfor %} ];
+    const failureRisks = [ {% for h in habits %} {{ (h.prob_fail * 100) | round }}, {% endfor %} ];
+    const threshold = {{ threshold * 100 }};
+    
+    // Dynamic bar colouring based on your AI threshold
+    const barColors = failureRisks.map(risk => risk >= threshold ? 'rgba(220, 53, 69, 0.8)' : 'rgba(40, 167, 69, 0.8)');
+    const borderColors = failureRisks.map(risk => risk >= threshold ? 'rgb(220, 53, 69)' : 'rgb(40, 167, 69)');
+
+    // Set default font colour based on current theme
+    Chart.defaults.color = document.body.classList.contains('dark-mode') ? '#e0e0e0' : '#666';
+
+    const riskChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: habitNames,
+            datasets: [{
+                label: 'AI Predicted Failure Risk (%)',
+                data: failureRisks,
+                backgroundColor: barColors,
+                borderColor: borderColors,
+                borderWidth: 1,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { 
+                y: { 
+                    beginAtZero: true, 
+                    max: 100,
+                    grid: { color: document.body.classList.contains('dark-mode') ? '#333' : '#e9ecef' }
+                },
+                x: {
+                    grid: { display: false }
+                }
+            },
+            plugins: { 
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.parsed.y + '% Failure Risk';
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Function to seamlessly update chart grids/text when theme toggles
+    function updateChartTheme(isDark) {
+        const textColor = isDark ? '#e0e0e0' : '#666';
+        const gridColor = isDark ? '#333' : '#e9ecef';
+        
+        riskChart.options.scales.x.ticks.color = textColor;
+        riskChart.options.scales.y.ticks.color = textColor;
+        riskChart.options.scales.y.grid.color = gridColor;
+        riskChart.update();
+    }
+    {% endif %}
+</script>
+
+</body>
+</html>
