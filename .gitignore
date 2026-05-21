@@ -1,0 +1,6 @@
+lightpath.db
+lightpath_ai_model.pkl
+__pycache__/
+*.pyc
+.env
+venv/
