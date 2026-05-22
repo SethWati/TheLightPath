@@ -63,8 +63,17 @@ app.secret_key = 'super_secret_lightpath_key_for_development'
 # train_model.py creates after training on the synthetic data. Keeping the
 # load at the module level means every request uses the same model object
 # in memory — no need to read the file from disk for every prediction.
-model = joblib.load(MODEL_PATH)
+import os
+import joblib
 
+# Determine the absolute path to the folder where app.py is located
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Join that path with the filename
+MODEL_PATH = os.path.join(BASE_DIR, 'lightpath_ai_model.pkl')
+
+# Now load the model using this absolute path
+model = joblib.load(MODEL_PATH)
 
 # ============================================================================
 # SECTION 1 — Database helpers
