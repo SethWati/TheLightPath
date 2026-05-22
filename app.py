@@ -7,7 +7,7 @@ strict three-tier idea, which is what Chapter 3 of the report goes into in
 depth:
 
   1. The DATA layer  — a SQLite database (see database_setup.py) that keeps
-                       users, habits, daily check-ins, and the library of
+ausers, habits, daily check-ins, and the library of
                        proactive nudges. Self-cleaning thanks to CASCADE
                        deletes, so we never end up with orphan data.
   2. The LOGIC layer — this file. It speaks to the database, runs the
