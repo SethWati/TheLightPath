@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TheLightPath | First Light</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg-grad: radial-gradient(ellipse at top, #fffbef 0%, #f4f1ec 55%, #e9e3d8 100%);
+            --text: #2c3e50; --muted: #6c757d; --card-bg: #ffffff;
+            --header-bg: #2c3e50; --accent: #f6b73c;
+        }
+        body.dark-mode {
+            --bg-grad: radial-gradient(ellipse at top, #1a1c22 0%, #0f1115 60%, #07080b 100%);
+            --text: #e0e0e0; --muted: #aaa; --card-bg: #1c1f25;
+            --header-bg: #11141a; --accent: #ffd370;
+        }
+        body { margin: 0; min-height: 100vh; background: var(--bg-grad); color: var(--text);
+               font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+               transition: background 0.4s, color 0.4s; padding: 40px 20px; }
+        .theme-toggle { position: fixed; top: 16px; right: 16px;
+               background: rgba(255,255,255,0.7); backdrop-filter: blur(6px);
+               border: 1px solid rgba(0,0,0,0.08); color: var(--text);
+               border-radius: 999px; padding: 6px 14px; font-size: 0.85rem;
+               cursor: pointer; transition: transform 0.2s, background 0.3s; }
+        body.dark-mode .theme-toggle { background: rgba(30,30,30,0.7); border-color: rgba(255,255,255,0.08); }
+        .theme-toggle:hover { transform: scale(1.05); }
+
+        .onboard-wrap { max-width: 760px; margin: 0 auto;
+               animation: lp-rise 0.6s cubic-bezier(.2,.8,.2,1) both; }
+        @keyframes lp-rise { from { opacity: 0; transform: translateY(20px); }
+                             to   { opacity: 1; transform: translateY(0); } }
+
+        .onboard-header { text-align: center; margin-bottom: 30px;
+               background: linear-gradient(135deg, var(--header-bg) 0%, #1a252f 100%);
+               color: white; padding: 36px 24px 32px; border-radius: 16px;
+               position: relative; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
+        .onboard-header::after { content: ""; position: absolute; inset: 0;
+               background: radial-gradient(circle at 20% 0%, rgba(246, 183, 60, 0.18), transparent 40%),
+                          radial-gradient(circle at 80% 100%, rgba(246, 183, 60, 0.10), transparent 50%);
+               pointer-events: none; }
+        .onboard-header > * { position: relative; z-index: 1; }
+        .onboard-header h1 { margin: 0 0 6px; font-weight: 700; letter-spacing: -0.01em; }
+        .onboard-header .eyebrow { font-size: 0.8rem; letter-spacing: 0.18em;
+               text-transform: uppercase; opacity: 0.75; margin: 0 0 8px; }
+        .onboard-header p { margin: 0; font-style: italic; opacity: 0.9; max-width: 540px;
+               margin-left: auto; margin-right: auto; }
+
+        .onboard-card { background: var(--card-bg); border-radius: 16px;
+               box-shadow: 0 10px 30px rgba(0,0,0,0.08); padding: 28px 28px 16px;
+               margin-bottom: 22px; transition: background 0.4s; }
+        .onboard-card h3 { font-size: 1.1rem; color: var(--accent); margin: 0 0 4px;
+               font-weight: 700; letter-spacing: -0.01em; }
+        .onboard-card .helper { color: var(--muted); font-size: 0.9rem; margin: 0 0 18px; }
+
+        .form-control, .form-select { background: transparent;
+               border: 1.5px solid rgba(0,0,0,0.08); color: var(--text);
+               transition: border-color 0.25s, box-shadow 0.25s, background 0.25s; }
+        body.dark-mode .form-control, body.dark-mode .form-select {
+               border-color: rgba(255,255,255,0.12); background: rgba(255,255,255,0.03); }
+        .form-control:focus, .form-select:focus { border-color: var(--accent);
+               box-shadow: 0 0 0 3px rgba(246, 183, 60, 0.18); background: var(--card-bg); }
+        .form-label { color: var(--muted); font-weight: 600; font-size: 0.9rem; }
+
+        .btn-light-path { background: linear-gradient(135deg, #2c3e50 0%, #1a252f 100%);
+               border: none; color: white; font-weight: 700; border-radius: 10px;
+               padding: 12px 24px; position: relative; overflow: hidden;
+               transition: transform 0.2s ease, box-shadow 0.3s ease; }
+        .btn-light-path:hover { transform: translateY(-1px);
+               box-shadow: 0 10px 24px rgba(44, 62, 80, 0.35); color: white; }
+        .btn-light-path::before { content: ""; position: absolute; inset: 0;
+               background: radial-gradient(circle at var(--mx, 50%) var(--my, 50%),
+                   rgba(246, 183, 60, 0.35), transparent 60%);
+               opacity: 0; transition: opacity 0.25s; }
+        .btn-light-path:hover::before { opacity: 1; }
+        .btn-skip { color: var(--muted); background: transparent; border: none;
+               text-decoration: underline; transition: color 0.2s; }
+        .btn-skip:hover { color: var(--text); }
+
+        .footer-actions { display: flex; align-items: center; justify-content: space-between;
+               gap: 14px; padding: 0 4px; margin-top: 12px; }
+    </style>
+</head>
+<body>
+
+<button id="themeToggle" class="theme-toggle" type="button">🌙 Dark</button>
+
+<div class="onboard-wrap">
+
+    <div class="onboard-header">
+        <p class="eyebrow">Step One &middot; The Dawn</p>
+        <h1>First Light</h1>
+        <p>Tell us a little about you &mdash; so the path can fit your stride.<br>
+           Every field is optional. Skip anything that doesn&rsquo;t feel right.</p>
+    </div>
+
+    <form action="/onboarding" method="POST">
+
+        <!-- Who you are -->
+        <div class="onboard-card">
+            <h3>Who you are</h3>
+            <p class="helper">Used to shape the language and source of your daily insight. Nothing here is shared with anyone &mdash; it sits in your account only.</p>
+
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label" for="religion">Faith or worldview</label>
+                    <select class="form-select" name="religion" id="religion">
+                        <option value="">No preference</option>
+                        <option value="Christianity" {% if profile.religion == 'Christianity' %}selected{% endif %}>Christianity</option>
+                        <option value="Islam" {% if profile.religion == 'Islam' %}selected{% endif %}>Islam</option>
+                        <option value="Judaism" {% if profile.religion == 'Judaism' %}selected{% endif %}>Judaism</option>
+                        <option value="Buddhism" {% if profile.religion == 'Buddhism' %}selected{% endif %}>Buddhism</option>
+                        <option value="Hinduism" {% if profile.religion == 'Hinduism' %}selected{% endif %}>Hinduism</option>
+                        <option value="Sikhism" {% if profile.religion == 'Sikhism' %}selected{% endif %}>Sikhism</option>
+                        <option value="Spiritual" {% if profile.religion == 'Spiritual' %}selected{% endif %}>Spiritual, no specific tradition</option>
+                        <option value="Agnostic" {% if profile.religion == 'Agnostic' %}selected{% endif %}>Agnostic</option>
+                        <option value="Atheist" {% if profile.religion == 'Atheist' %}selected{% endif %}>Atheist / non-religious</option>
+                        <option value="Other" {% if profile.religion == 'Other' %}selected{% endif %}>Other</option>
+                        <option value="Prefer not to say" {% if profile.religion == 'Prefer not to say' %}selected{% endif %}>Prefer not to say</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="ethnicity">Ethnicity</label>
+                    <input type="text" class="form-control" name="ethnicity" id="ethnicity"
+                           placeholder="e.g., Black British, South Asian, Mixed" maxlength="80"
+                           value="{{ profile.ethnicity or '' }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="age_band">Age band</label>
+                    <select class="form-select" name="age_band" id="age_band">
+                        <option value="">Prefer not to say</option>
+                        {% for band in ['Under 18','18-24','25-34','35-44','45-54','55-64','65+'] %}
+                            <option value="{{ band }}" {% if profile.age_band == band %}selected{% endif %}>{{ band }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="occupation">What fills your weekdays?</label>
+                    <select class="form-select" name="occupation" id="occupation">
+                        <option value="">Prefer not to say</option>
+                        {% for opt in ['Student','Worker','Self-employed','Unemployed','Carer','Retired','Other'] %}
+                            <option value="{{ opt }}" {% if profile.occupation == opt %}selected{% endif %}>{{ opt }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="marital_status">Relationship</label>
+                    <select class="form-select" name="marital_status" id="marital_status">
+                        <option value="">Prefer not to say</option>
+                        {% for opt in ['Single','In a relationship','Engaged','Married','Separated','Divorced','Widowed','It\'s complicated'] %}
+                            <option value="{{ opt }}" {% if profile.marital_status == opt %}selected{% endif %}>{{ opt }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- What you love -->
+        <div class="onboard-card">
+            <h3>What lights you up</h3>
+            <p class="helper">A few comma-separated things &mdash; the system uses these to make suggestions feel personal. No right answer.</p>
+            <div class="mb-3">
+                <label class="form-label" for="hobbies">Hobbies &amp; interests</label>
+                <input type="text" class="form-control" name="hobbies" id="hobbies"
+                       placeholder="e.g., piano, football, painting, hiking, gaming"
+                       value="{{ profile.hobbies or '' }}" maxlength="240">
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="foods">Foods you enjoy</label>
+                <input type="text" class="form-control" name="foods" id="foods"
+                       placeholder="e.g., nyama choma, sushi, jollof, dal, pasta"
+                       value="{{ profile.foods or '' }}" maxlength="240">
+            </div>
+            <div class="mb-2">
+                <label class="form-label" for="enjoys">Things that make a day a good day</label>
+                <textarea class="form-control" name="enjoys" id="enjoys" rows="2" maxlength="500"
+                          placeholder="A walk at dusk, time with family, finishing a chapter, a quiet morning&hellip;">{{ profile.enjoys or '' }}</textarea>
+            </div>
+        </div>
+
+        <div class="footer-actions">
+            <a href="/" class="btn btn-skip">Skip for now</a>
+            <button type="submit" class="btn btn-light-path">Light my path &rarr;</button>
+        </div>
+
+    </form>
+
+</div>
+
+<script>
+    const btn = document.getElementById('themeToggle');
+    function setDark(d) { document.body.classList.toggle('dark-mode', d);
+        btn.textContent = d ? '☀️ Light' : '🌙 Dark';
+        localStorage.setItem('theme', d ? 'dark' : 'light'); }
+    if (localStorage.getItem('theme') === 'dark') setDark(true);
+    btn.addEventListener('click', () => setDark(!document.body.classList.contains('dark-mode')));
+    document.querySelectorAll('.btn-light-path').forEach(b => {
+        b.addEventListener('pointermove', (e) => {
+            const r = b.getBoundingClientRect();
+            b.style.setProperty('--mx', ((e.clientX - r.left) / r.width * 100) + '%');
+            b.style.setProperty('--my', ((e.clientY - r.top)  / r.height * 100) + '%');
+        });
+    });
+</script>
+
+</body>
+</html>

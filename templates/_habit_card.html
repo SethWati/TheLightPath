@@ -1,0 +1,75 @@
+{# Single habit card. Used both at first render (looped in index.html) and as the
+   template the AJAX layer mirrors in JavaScript when it appends a freshly added
+   habit. Keep markup changes in sync with renderHabitCard() in index.html. #}
+<div class="col-md-6 mb-4 habit-col" data-habit-id="{{ h.id }}">
+    <div class="card h-100 lp-clickable" tabindex="0" role="button" aria-label="View detail for {{ h.name }}">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="d-flex align-items-center mb-1">
+                        <h4 class="card-title mb-0 me-2">{{ h.name }}</h4>
+                        <button type="button" class="btn btn-sm btn-outline-danger border-0 p-1 lp-delete" title="Delete habit">&#128465;&#65039;</button>
+                    </div>
+                    <span class="badge bg-secondary">{{ h.category }}</span>
+                    <div class="lp-target meta mt-1" {% if not h.target_measure and not h.target_time %}style="display:none"{% endif %}>
+                        <span class="lp-target-measure">{% if h.target_measure %}🎯 {{ h.target_measure }}{% endif %}</span>
+                        <span class="lp-target-time">{% if h.target_time %}&middot; ⏰ {{ h.target_time }}{% endif %}</span>
+                    </div>
+                </div>
+                <div class="text-end">
+                    <span class="badge rounded-pill d-block mb-1 lp-status-badge
+                        {% if h.today_status == 1 %}bg-success{% elif h.today_status == 0 %}bg-danger{% else %}bg-secondary{% endif %}">
+                        {% if h.today_status == 1 %}Lit it up today &#x2728;
+                        {% elif h.today_status == 0 %}Slipped today
+                        {% else %}Awaiting you{% endif %}
+                    </span>
+                    <span class="badge bg-warning text-dark px-2 py-1 shadow-sm lp-streak">&#128293; {{ h.streak }}-day streak</span>
+                </div>
+            </div>
+
+            <div class="mt-3 meta">
+                Risk of slipping today: <strong class="lp-prob">{{ '%.0f' | format(h.prob_fail * 100) }}%</strong>
+                <em class="lp-fallback" {% if not h.used_fallback %}style="display:none"{% endif %}>(quietly learning your pattern&hellip;)</em>
+            </div>
+            <div class="risk-meter mt-1 shadow-sm">
+                <div class="lp-meter-bar" style="width: {{ (h.prob_fail * 100) | round(0) | int }}%;"></div>
+            </div>
+
+            <div class="lp-history" aria-label="Your last 30 days">
+                {% set total = h.history_30d | length %}
+                {% for cell in h.history_30d %}
+                    <span class="lp-history-cell
+                        {%- if cell.status == 1 %} lp-cell-done
+                        {%- elif cell.status == 0 %} lp-cell-miss{% endif %}
+                        {%- if loop.index0 >= total - 3 %} lp-cell-window{% endif %}"
+                        title="{{ cell.date }}: {% if cell.status == 1 %}lit up{% elif cell.status == 0 %}slipped{% else %}quiet day{% endif %}"></span>
+                {% endfor %}
+            </div>
+            <div class="lp-history-legend">Your last 30 days. The brighter three cells guide today&rsquo;s call.</div>
+
+            <div class="lp-checkin-wrap mt-3" {% if h.today_status == 1 %}style="display:none"{% endif %}>
+                <button type="button" class="btn btn-outline-success btn-sm w-100 fw-bold shadow-sm lp-checkin">&check; I did it &#x2728;</button>
+            </div>
+
+            <div class="lp-intervention-wrap" {% if not h.at_risk %}style="display:none"{% endif %}>
+                <div class="ai-warning mt-3 shadow-sm">
+                    <strong>A little nudge for you.</strong>
+                    You&rsquo;re drifting &mdash; let&rsquo;s pull you back on the path.
+                </div>
+                {% if h.intervention %}
+                    <div class="intervention shadow-sm lp-intervention-card">
+                        <strong class="lp-intervention-type">{{ h.intervention.type | replace('_', ' ') | title }}:</strong>
+                        <span class="lp-intervention-msg">{{ h.intervention.message }}</span>
+                        <div class="lp-intervention-source-wrap" {% if not h.intervention.source %}style="display:none"{% endif %}>
+                            <br><small class="text-muted">&mdash; <span class="lp-intervention-source">{{ h.intervention.source or '' }}</span></small>
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="alert alert-warning mt-2 mb-0 shadow-sm lp-intervention-missing">
+                        Nothing in the encouragement library for <em>{{ h.category }}</em> yet.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>

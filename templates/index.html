@@ -23,8 +23,202 @@
         .ai-warning { background-color: #fff3cd; border-left: 5px solid #ffc107; padding: 15px; }
         .intervention { background-color: #d1ecf1; border-left: 5px solid #17a2b8; padding: 15px; margin-top: 10px; }
         .risk-meter { height: 8px; border-radius: 4px; background: #e9ecef; overflow: hidden; }
-        .risk-meter > div { height: 100%; background: linear-gradient(to right, #28a745, #ffc107, #dc3545); }
+        .risk-meter > div { height: 100%; background: linear-gradient(to right, #28a745, #ffc107, #dc3545); transition: width 0.6s cubic-bezier(.2,.8,.2,1); }
         .meta { font-size: 0.85rem; color: #6c757d; }
+
+        /* Subtle pulse to draw the eye when an intervention or risk band appears mid-session */
+        @keyframes lp-fade-in {
+            from { opacity: 0; transform: translateY(-4px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .lp-fade-in { animation: lp-fade-in 0.45s ease both; }
+
+        /* Card removal animation for delete */
+        @keyframes lp-fade-out {
+            to { opacity: 0; transform: scale(0.95); }
+        }
+        .lp-fade-out { animation: lp-fade-out 0.35s ease forwards; }
+
+        /* In-progress state on buttons during fetch() */
+        .btn[disabled] { opacity: 0.6; cursor: progress; }
+
+        /* 30-day history sparkline */
+        .lp-history {
+            display: flex;
+            gap: 2px;
+            margin-top: 8px;
+            height: 16px;
+        }
+        .lp-history-cell {
+            flex: 1 1 0;
+            min-width: 4px;
+            background: #e9ecef;
+            border-radius: 2px;
+            transition: background 0.3s ease, outline-color 0.3s ease;
+        }
+        .lp-cell-done { background: #28a745; }
+        .lp-cell-miss { background: #dc3545; }
+        .lp-cell-window {
+            outline: 1.5px solid #2c3e50;
+            outline-offset: 1px;
+        }
+        .lp-history-legend { font-size: 0.75rem; color: #6c757d; margin-top: 4px; }
+
+        body.dark-mode .lp-history-cell { background: #2c2c2c; }
+        body.dark-mode .lp-cell-done { background: #28a745; }
+        body.dark-mode .lp-cell-miss { background: #dc3545; }
+        body.dark-mode .lp-cell-window { outline-color: #e0e0e0; }
+        body.dark-mode .lp-history-legend { color: #aaa; }
+
+        /* Responsive header — stack actions under the title on narrow screens
+           instead of letting them sit absolutely-positioned on top of the text. */
+        .header-actions { position: absolute; top: 12px; right: 16px; }
+        @media (max-width: 575.98px) {
+            .dashboard-header { padding: 16px 12px 12px; }
+            .dashboard-header h1 { font-size: 1.6rem; }
+            .header-actions {
+                position: static;
+                justify-content: center;
+                margin-top: 10px;
+            }
+            .lp-tagline { font-size: 0.9rem; }
+            .lp-history { height: 12px; }
+            .lp-history-cell { min-width: 3px; }
+            .card-title { font-size: 1.15rem; }
+        }
+        @media (max-width: 767.98px) {
+            .container { padding-left: 12px; padding-right: 12px; }
+        }
+
+        /* Card body internals shouldn't overflow horizontally on tiny screens. */
+        .card-body { min-width: 0; }
+        .card-body .d-flex > div { min-width: 0; }
+        .lp-target { word-break: break-word; }
+        .intervention, .ai-warning { word-wrap: break-word; }
+        /* Clickable card affordance */
+        .card.lp-clickable { cursor: pointer; }
+        .card.lp-clickable:focus-within { outline: 2px solid #2c3e50; outline-offset: 2px; }
+
+        /* Hover interactivity */
+        .lp-history-cell:hover { transform: scaleY(1.6); z-index: 2; cursor: help; }
+        .lp-streak { display: inline-block; transition: transform 0.2s ease; }
+        .card:hover .lp-streak { transform: scale(1.08); }
+        #insightRefresh { transition: transform 0.4s ease; }
+        #insightRefresh:hover, #insightRefresh:focus { transform: rotate(180deg); }
+        #themeToggle { transition: transform 0.4s ease, background-color 0.3s; }
+        #themeToggle:hover { transform: rotate(20deg) scale(1.05); }
+        .lp-tagline {
+            background: linear-gradient(90deg, #fff 0%, #ffe082 50%, #fff 100%);
+            background-size: 200% 100%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            animation: lp-shimmer 6s ease-in-out infinite;
+        }
+        @keyframes lp-shimmer {
+            0%, 100% { background-position: 200% 0; }
+            50%      { background-position: 0 0; }
+        }
+        body.dark-mode .lp-tagline {
+            background: linear-gradient(90deg, #e0e0e0 0%, #ffd370 50%, #e0e0e0 100%);
+            background-size: 200% 100%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        /* Risk meter glow when high */
+        .risk-meter.lp-meter-hot > div { box-shadow: 0 0 10px rgba(220, 53, 69, 0.55); }
+
+        /* Sparkle celebration on check-in */
+        @keyframes lp-sparkle {
+            0%   { opacity: 0; transform: translate(-50%, -50%) scale(0) rotate(0deg); }
+            30%  { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(45deg); }
+            100% { opacity: 0; transform: translate(-50%, calc(-50% - 60px)) scale(0.6) rotate(180deg); }
+        }
+        .lp-sparkle-host { position: relative; }
+        .lp-sparkle {
+            position: absolute;
+            left: 50%; top: 50%;
+            font-size: 1.4rem;
+            pointer-events: none;
+            animation: lp-sparkle 1100ms ease-out forwards;
+            z-index: 5;
+        }
+        .lp-card-flash {
+            animation: lp-card-flash 700ms ease-out;
+        }
+        @keyframes lp-card-flash {
+            0%   { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+            40%  { box-shadow: 0 0 0 8px rgba(40, 167, 69, 0.25); }
+            100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+        }
+
+        /* ---------- Ask the Path chat ---------- */
+        #chatLauncher {
+            position: fixed; right: 20px; bottom: 20px;
+            background: linear-gradient(135deg, #2c3e50 0%, #1a252f 100%);
+            color: white; border: none; border-radius: 999px;
+            padding: 12px 20px; font-weight: 700;
+            box-shadow: 0 10px 24px rgba(0,0,0,0.25);
+            cursor: pointer; z-index: 1040;
+            transition: transform 0.2s, box-shadow 0.3s;
+        }
+        #chatLauncher:hover { transform: translateY(-2px) scale(1.03); box-shadow: 0 14px 30px rgba(0,0,0,0.3); }
+        #chatPanel {
+            position: fixed; right: 20px; bottom: 78px;
+            width: 360px; max-width: calc(100vw - 32px);
+            height: 480px; max-height: calc(100vh - 120px);
+            background: #fff; border-radius: 14px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+            display: none; flex-direction: column; overflow: hidden;
+            z-index: 1041;
+            animation: lp-rise-chat 0.3s ease both;
+        }
+        @keyframes lp-rise-chat {
+            from { opacity: 0; transform: translateY(20px) scale(0.96); }
+            to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        body.dark-mode #chatPanel { background: #1c1f25; color: #e0e0e0; }
+        #chatPanel.show { display: flex; }
+        .lp-chat-head {
+            background: linear-gradient(135deg, #2c3e50 0%, #1a252f 100%);
+            color: white; padding: 14px 16px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .lp-chat-head h6 { margin: 0; font-weight: 700; }
+        .lp-chat-head small { opacity: 0.75; }
+        .lp-chat-close { background: transparent; border: none; color: white;
+            font-size: 1.4rem; line-height: 1; cursor: pointer; padding: 0 4px; }
+        .lp-chat-body { flex: 1; padding: 14px; overflow-y: auto;
+            display: flex; flex-direction: column; gap: 10px; }
+        .lp-chat-msg { max-width: 85%; padding: 10px 12px; border-radius: 12px;
+            font-size: 0.92rem; line-height: 1.4; white-space: pre-wrap; word-wrap: break-word; }
+        .lp-chat-msg.user { align-self: flex-end;
+            background: #2c3e50; color: white; border-bottom-right-radius: 3px; }
+        .lp-chat-msg.bot {
+            align-self: flex-start;
+            background: #f4f1ec; color: #2c3e50; border-bottom-left-radius: 3px; }
+        body.dark-mode .lp-chat-msg.bot { background: #2c2f36; color: #e0e0e0; }
+        .lp-chat-foot { padding: 10px; border-top: 1px solid rgba(0,0,0,0.08);
+            display: flex; gap: 8px; }
+        body.dark-mode .lp-chat-foot { border-top-color: rgba(255,255,255,0.08); }
+        .lp-chat-foot input {
+            flex: 1; padding: 10px 12px; border: 1px solid rgba(0,0,0,0.12);
+            border-radius: 10px; outline: none;
+            background: transparent; color: inherit;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        body.dark-mode .lp-chat-foot input { border-color: rgba(255,255,255,0.12); }
+        .lp-chat-foot input:focus { border-color: #f6b73c; box-shadow: 0 0 0 3px rgba(246,183,60,0.18); }
+        .lp-chat-foot button {
+            background: linear-gradient(135deg, #2c3e50 0%, #1a252f 100%);
+            color: white; border: none; border-radius: 10px;
+            padding: 0 16px; font-weight: 700; cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .lp-chat-foot button:hover { transform: translateY(-1px); }
+        .lp-chat-typing { font-style: italic; opacity: 0.6; }
 
         /* --- Dark Mode Overrides --- */
         body.dark-mode { background-color: #121212; color: #e0e0e0; }
@@ -42,24 +236,24 @@
 <body>
 
 <div class="dashboard-header text-center">
-    <div class="position-absolute top-0 end-0 p-3 d-flex gap-2">
+    <div class="header-actions d-flex gap-2">
         <button id="themeToggle" class="btn btn-outline-light btn-sm fw-bold shadow-sm">🌙 Dark Mode</button>
         <a href="/logout" class="btn btn-outline-light btn-sm fw-bold shadow-sm">Logout</a>
     </div>
     
-    <h1>TheLightPath</h1>
-    <p class="mb-1">Proactive Habit Tracking &amp; Intervention</p>
+    <h1 class="mb-1">TheLightPath</h1>
+    <p class="lp-tagline mb-2 fst-italic">Making sure you are on the right path!</p>
     <p class="mb-0">
         Welcome, <strong>{{ user.username if user else 'guest' }}</strong>
-        &mdash; {{ today.strftime('%A, %d %B %Y') }}
+        &mdash; let&rsquo;s light up {{ today.strftime('%A, %d %B %Y') }}.
     </p>
 </div>
 
 <div class="container">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3 class="m-0 text-secondary">Your Active Habits</h3>
+        <h3 class="m-0 text-secondary">Your active path</h3>
         <button type="button" class="btn btn-primary fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#addHabitModal">
-            + Add New Habit
+            + Add a new target
         </button>
     </div>
 
@@ -74,109 +268,132 @@
       {% endif %}
     {% endwith %}
 
-    {% if habits %}
-    <div class="card mb-4 p-3 shadow-sm">
-        <h5 class="text-secondary mb-3">AI Risk Analytics (Current Targets)</h5>
+    <div id="insightCard" class="card mb-4 p-3 shadow-sm">
+        <div class="d-flex justify-content-between align-items-start gap-2">
+            <div class="flex-grow-1" style="min-width: 0;">
+                <h6 class="text-secondary text-uppercase mb-2" style="letter-spacing: 0.05em;">A light for today</h6>
+                <div id="insightBody">
+                    <p class="mb-1 fst-italic" id="insightMessage">Warming up a thought for you&hellip;</p>
+                    <small class="text-muted" id="insightSource"></small>
+                </div>
+            </div>
+            <button type="button" id="insightRefresh" class="btn btn-sm btn-outline-secondary flex-shrink-0" title="Show another insight">&#x21BB;</button>
+        </div>
+    </div>
+
+    <div id="chartCard" class="card mb-4 p-3 shadow-sm" {% if not habits %}style="display:none"{% endif %}>
+        <div class="d-flex justify-content-between align-items-baseline mb-3 flex-wrap gap-2">
+            <h5 class="text-secondary m-0">Current targets</h5>
+            <small class="text-muted">Tap a bar to delve in &mdash; green is light, red is a nudge.</small>
+        </div>
         <div style="position: relative; height:200px; width:100%">
             <canvas id="riskChart"></canvas>
         </div>
     </div>
-    {% else %}
-        <div class="alert alert-info shadow-sm">No habits tracked yet. Click "+ Add New Habit" to get started!</div>
-    {% endif %}
 
-    <div class="row">
+    <div id="emptyState" class="alert alert-info shadow-sm" {% if habits %}style="display:none"{% endif %}>
+        Nothing on your path yet. Tap &ldquo;+ Add a new target&rdquo; and let&rsquo;s light it up.
+    </div>
+
+    <div id="habitGrid" class="row">
         {% for h in habits %}
-        <div class="col-md-6 mb-4">
-            <div class="card h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <div class="d-flex align-items-center mb-1">
-                                <h4 class="card-title mb-0 me-2">{{ h.name }}</h4>
-                                <form action="/delete_habit/{{ h.id }}" method="POST" class="m-0" onsubmit="return confirm('Are you sure you want to permanently delete this target and all its historical tracking data?');">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Delete Habit">🗑️</button>
-                                </form>
-                            </div>
-                            <span class="badge bg-secondary">{{ h.category }}</span>
-                        </div>
-                        <div class="text-end">
-                            {% if h.today_status == 1 %}
-                                <span class="badge bg-success rounded-pill d-block mb-1">Completed today</span>
-                            {% elif h.today_status == 0 %}
-                                <span class="badge bg-danger rounded-pill d-block mb-1">Missed today</span>
-                            {% else %}
-                                <span class="badge bg-secondary rounded-pill d-block mb-1">Pending</span>
-                            {% endif %}
-                            <span class="badge bg-warning text-dark px-2 py-1 shadow-sm">🔥 {{ h.streak }} Day Streak</span>
-                        </div>
-                    </div>
+        {% include '_habit_card.html' %}
+        {% endfor %}
+    </div>
+</div>
 
-                    <div class="mt-3 meta">
-                        Predicted failure risk: <strong>{{ '%.0f' | format(h.prob_fail * 100) }}%</strong>
-                        {% if h.used_fallback %}
-                            <em>(rule-based fallback &mdash; insufficient 3-day history)</em>
-                        {% endif %}
-                    </div>
-                    <div class="risk-meter mt-1 shadow-sm">
-                        <div style="width: {{ '%.0f' | format(h.prob_fail * 100) }}%;"></div>
-                    </div>
-
-                    {% if h.today_status != 1 %}
-                    <form action="/check_in/{{ h.id }}" method="POST" class="mt-3">
-                        <button type="submit" class="btn btn-outline-success btn-sm w-100 fw-bold shadow-sm">✓ Mark as Done Today</button>
-                    </form>
-                    {% endif %}
-
-                    {% if h.at_risk %}
-                        <div class="ai-warning mt-3 shadow-sm">
-                            <strong>Intervention triggered.</strong>
-                            Risk &ge; {{ '%.0f' | format(threshold * 100) }}% threshold.
-                        </div>
-                        {% if h.intervention %}
-                            <div class="intervention shadow-sm">
-                                <strong>{{ h.intervention.type | replace('_', ' ') | title }}:</strong> 
-                                {{ h.intervention.message }}
-                                {% if h.intervention.source %}
-                                    <br><small class="text-muted">&mdash; {{ h.intervention.source }}</small>
-                                {% endif %}
-                            </div>
-                        {% else %}
-                            <div class="alert alert-warning mt-2 mb-0 shadow-sm">
-                                No library entry for category <em>{{ h.category }}</em>.
-                                Run <code>python seed_interventions.py</code>.
-                            </div>
-                        {% endif %}
-                    {% endif %}
-                </div>
-            </div>
+<!-- Ask the Path: floating chat panel. Backed by /api/chat — keyword-matched
+     replies + a worldview-filtered library quote + a follow-up question. -->
+<button id="chatLauncher" type="button" title="Ask the Path">💬 Ask the Path</button>
+<div id="chatPanel" role="dialog" aria-label="Ask the Path">
+    <div class="lp-chat-head">
+        <div>
+            <h6>Ask the Path</h6>
+            <small>A nudge, a quote, a question.</small>
         </div>
-        {% endfor %} </div>
+        <button class="lp-chat-close" type="button" aria-label="Close">&times;</button>
+    </div>
+    <div class="lp-chat-body" id="chatBody">
+        <div class="lp-chat-msg bot">Hi {{ user.username if user else 'friend' }} — tell me what&rsquo;s on your mind. Trouble with a habit, a low day, a win you want to build on — I&rsquo;m here.</div>
+    </div>
+    <form class="lp-chat-foot" id="chatForm" autocomplete="off">
+        <input type="text" id="chatInput" placeholder="Say anything&hellip;" maxlength="800" required>
+        <button type="submit" aria-label="Send">Send</button>
+    </form>
+</div>
+
+<div class="modal fade" id="habitDetailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header bg-dark text-white">
+        <h5 class="modal-title" id="detailTitle">Your target</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+            <span class="badge bg-secondary me-2" id="detailCategory"></span>
+            <span class="meta" id="detailTarget"></span>
+            <div class="meta mt-1" id="detailCreated"></div>
+        </div>
+
+        <h6 class="text-secondary text-uppercase mb-2" style="letter-spacing:.05em">Where you stand</h6>
+        <div class="row g-3 mb-3">
+            <div class="col-6 col-md-3"><div class="card p-2 text-center"><div class="meta">Risk today</div><strong id="detailRisk"></strong></div></div>
+            <div class="col-6 col-md-3"><div class="card p-2 text-center"><div class="meta">Streak</div><strong id="detailStreak"></strong></div></div>
+            <div class="col-6 col-md-3"><div class="card p-2 text-center"><div class="meta">Lit days (30)</div><strong id="detailCompleted"></strong></div></div>
+            <div class="col-6 col-md-3"><div class="card p-2 text-center"><div class="meta">Best run (30)</div><strong id="detailBest"></strong></div></div>
+        </div>
+
+        <h6 class="text-secondary text-uppercase mb-2" style="letter-spacing:.05em">Your last 30 days</h6>
+        <div class="lp-history lp-history-large" id="detailHistory" style="height: 28px;"></div>
+        <div class="lp-history-legend mb-3">Each square is a day. The brighter three on the right guide today&rsquo;s call.</div>
+
+        <h6 class="text-secondary text-uppercase mb-2" style="letter-spacing:.05em">What the path looks like today</h6>
+        <p class="mb-3" id="detailExplain"></p>
+
+        <h6 class="text-secondary text-uppercase mb-2" style="letter-spacing:.05em">Recent nudges</h6>
+        <ul class="list-group list-group-flush mb-2" id="detailInterventions">
+            <li class="list-group-item text-muted">No nudges yet &mdash; you&rsquo;ve been holding the line.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="modal fade" id="addHabitModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header bg-dark text-white">
-        <h5 class="modal-title">Create a New Target</h5>
+        <h5 class="modal-title">Add a new target to your path</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
         <form action="/add_habit" method="POST">
           <div class="mb-3">
-            <label class="form-label fw-bold">Habit Name</label>
-            <input type="text" class="form-control" name="habit_name" placeholder="e.g., Read 10 Pages" required>
+            <label class="form-label fw-bold">What&rsquo;s the habit?</label>
+            <input type="text" class="form-control" name="habit_name" placeholder="e.g., Read 10 pages, Daily walk, Drink 2L" required>
           </div>
-          <div class="mb-4">
-            <label class="form-label fw-bold">Category</label>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Which corner of life?</label>
             <select class="form-select" name="category" required>
-              <option value="" disabled selected>Select an area of focus...</option>
+              <option value="" disabled selected>Pick where this one belongs&hellip;</option>
               <option value="Health">Health</option>
               <option value="Learning">Learning</option>
               <option value="Productivity">Productivity</option>
             </select>
           </div>
-          <button type="submit" class="btn btn-primary w-100 fw-bold shadow-sm">Start Tracking</button>
+          <div class="row g-2 mb-3">
+            <div class="col-sm-7">
+              <label class="form-label fw-bold">How much? <small class="text-muted">(optional)</small></label>
+              <input type="text" class="form-control" name="target_measure" placeholder="e.g., 30 minutes, 2L, 10 pages" maxlength="60">
+            </div>
+            <div class="col-sm-5">
+              <label class="form-label fw-bold">When? <small class="text-muted">(optional)</small></label>
+              <input type="time" class="form-control" name="target_time">
+            </div>
+          </div>
+          <p class="meta mb-3">Pinning down the <em>what</em> and the <em>when</em> makes the habit much harder to skip.</p>
+          <button type="submit" class="btn btn-primary w-100 fw-bold shadow-sm">Light it up</button>
         </form>
       </div>
     </div>
@@ -186,102 +403,544 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
-    // 1. Theme Toggle Logic
-    const themeBtn = document.getElementById('themeToggle');
-    
-    function setDarkMode(isDark) {
-        if(isDark) {
-            document.body.classList.add('dark-mode');
-            themeBtn.innerText = '☀️ Light Mode';
-            localStorage.setItem('theme', 'dark');
-        } else {
-            document.body.classList.remove('dark-mode');
-            themeBtn.innerText = '🌙 Dark Mode';
-            localStorage.setItem('theme', 'light');
-        }
-    }
+/* ------------------------------------------------------------------
+ * TheLightPath dashboard — dynamic AJAX layer
+ * ------------------------------------------------------------------
+ * The page is first rendered server-side through Jinja2 (matching the
+ * architecture described in Chapter 3.3 of the report). Every later
+ * interaction — check-in, add, delete — is routed through fetch() so
+ * the dashboard updates in place. The Random Forest risk score, the
+ * intervention card, the streak badge, and the Chart.js bar all
+ * refresh without a full page reload, fulfilling the Just-In-Time
+ * Adaptive Intervention claim that the interface "dynamically adapts
+ * to the user's immediate psychological state".
+ * ------------------------------------------------------------------ */
 
-    // Check for saved theme preference on page load
-    if(localStorage.getItem('theme') === 'dark') {
-        setDarkMode(true);
-    }
+const THRESHOLD = {{ (threshold * 100) | round }};
+const RISK_COLOUR_HI = 'rgba(220, 53, 69, 0.8)';
+const RISK_COLOUR_LO = 'rgba(40, 167, 69, 0.8)';
+const RISK_BORDER_HI = 'rgb(220, 53, 69)';
+const RISK_BORDER_LO = 'rgb(40, 167, 69)';
 
-    themeBtn.addEventListener('click', () => {
-        const isCurrentlyDark = document.body.classList.contains('dark-mode');
-        setDarkMode(!isCurrentlyDark);
-        
-        // Re-render chart to match theme if it exists
-        if(typeof riskChart !== 'undefined') {
-            updateChartTheme(!isCurrentlyDark);
-        }
-    });
+/* ---------- 1. Theme toggle ---------- */
+const themeBtn = document.getElementById('themeToggle');
+function setDarkMode(isDark) {
+    document.body.classList.toggle('dark-mode', isDark);
+    themeBtn.innerText = isDark ? '☀️ Light Mode' : '\u{1F319} Dark Mode';
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    if (window.riskChart) updateChartTheme(isDark);
+}
+if (localStorage.getItem('theme') === 'dark') setDarkMode(true);
+themeBtn.addEventListener('click', () => setDarkMode(!document.body.classList.contains('dark-mode')));
 
-    // 2. Dynamic Chart.js Implementation
-    {% if habits %}
-    const ctx = document.getElementById('riskChart').getContext('2d');
-    
-    // Pulling real data directly from your Flask backend
-    const habitNames = [ {% for h in habits %} "{{ h.name }}", {% endfor %} ];
-    const failureRisks = [ {% for h in habits %} {{ (h.prob_fail * 100) | round }}, {% endfor %} ];
-    const threshold = {{ threshold * 100 }};
-    
-    // Dynamic bar colouring based on your AI threshold
-    const barColors = failureRisks.map(risk => risk >= threshold ? 'rgba(220, 53, 69, 0.8)' : 'rgba(40, 167, 69, 0.8)');
-    const borderColors = failureRisks.map(risk => risk >= threshold ? 'rgb(220, 53, 69)' : 'rgb(40, 167, 69)');
+/* ---------- 2. Chart.js — kept in sync with the live habit grid ---------- */
+const chartCard = document.getElementById('chartCard');
+const emptyState = document.getElementById('emptyState');
+const habitGrid = document.getElementById('habitGrid');
+const ctx = document.getElementById('riskChart').getContext('2d');
+Chart.defaults.color = document.body.classList.contains('dark-mode') ? '#e0e0e0' : '#666';
 
-    // Set default font colour based on current theme
-    Chart.defaults.color = document.body.classList.contains('dark-mode') ? '#e0e0e0' : '#666';
-
-    const riskChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: habitNames,
-            datasets: [{
-                label: 'AI Predicted Failure Risk (%)',
-                data: failureRisks,
-                backgroundColor: barColors,
-                borderColor: borderColors,
-                borderWidth: 1,
-                borderRadius: 4
-            }]
+window.riskChart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: [], datasets: [{
+        label: 'Chance of slipping today (%)',
+        data: [],
+        backgroundColor: [],
+        borderColor: [],
+        borderWidth: 1,
+        borderRadius: 4,
+    }]},
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        // Tap a bar — open that habit's detail modal.
+        onClick: (evt, items) => {
+            if (!items.length) return;
+            const idx = items[0].index;
+            const cards = habitGrid.querySelectorAll('.habit-col');
+            const card = cards[idx];
+            if (card) openHabitDetail(card.dataset.habitId);
         },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: { 
-                y: { 
-                    beginAtZero: true, 
-                    max: 100,
-                    grid: { color: document.body.classList.contains('dark-mode') ? '#333' : '#e9ecef' }
-                },
-                x: {
-                    grid: { display: false }
-                }
-            },
-            plugins: { 
-                legend: { display: false },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            return context.parsed.y + '% Failure Risk';
-                        }
-                    }
-                }
-            }
+        onHover: (evt, items) => {
+            evt.native.target.style.cursor = items.length ? 'pointer' : 'default';
+        },
+        scales: {
+            y: { beginAtZero: true, max: 100,
+                 grid: { color: document.body.classList.contains('dark-mode') ? '#333' : '#e9ecef' } },
+            x: { grid: { display: false } }
+        },
+        plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: c => c.parsed.y + '% chance of slipping today' } }
         }
-    });
-
-    // Function to seamlessly update chart grids/text when theme toggles
-    function updateChartTheme(isDark) {
-        const textColor = isDark ? '#e0e0e0' : '#666';
-        const gridColor = isDark ? '#333' : '#e9ecef';
-        
-        riskChart.options.scales.x.ticks.color = textColor;
-        riskChart.options.scales.y.ticks.color = textColor;
-        riskChart.options.scales.y.grid.color = gridColor;
-        riskChart.update();
     }
-    {% endif %}
+});
+
+function updateChartTheme(isDark) {
+    const textColor = isDark ? '#e0e0e0' : '#666';
+    const gridColor = isDark ? '#333' : '#e9ecef';
+    window.riskChart.options.scales.x.ticks = { color: textColor };
+    window.riskChart.options.scales.y.ticks = { color: textColor };
+    window.riskChart.options.scales.y.grid.color = gridColor;
+    window.riskChart.update();
+}
+
+function rebuildChartFromGrid() {
+    const cards = habitGrid.querySelectorAll('.habit-col');
+    const labels = [], risks = [], bg = [], bd = [];
+    cards.forEach(c => {
+        labels.push(c.querySelector('.card-title').textContent.trim());
+        const r = parseInt(c.querySelector('.lp-prob').textContent, 10) || 0;
+        risks.push(r);
+        bg.push(r >= THRESHOLD ? RISK_COLOUR_HI : RISK_COLOUR_LO);
+        bd.push(r >= THRESHOLD ? RISK_BORDER_HI : RISK_BORDER_LO);
+    });
+    window.riskChart.data.labels = labels;
+    window.riskChart.data.datasets[0].data = risks;
+    window.riskChart.data.datasets[0].backgroundColor = bg;
+    window.riskChart.data.datasets[0].borderColor = bd;
+    window.riskChart.update();
+    chartCard.style.display = cards.length ? '' : 'none';
+    emptyState.style.display = cards.length ? 'none' : '';
+}
+rebuildChartFromGrid();
+
+/* Mini celebration: scatters a handful of sparkles around the card and pulses
+ * a soft green ring. Cheap to render and removes itself when done. */
+function celebrateCheckin(card) {
+    const body = card.querySelector('.card-body') || card;
+    body.classList.add('lp-sparkle-host');
+    card.querySelector('.card').classList.add('lp-card-flash');
+    setTimeout(() => card.querySelector('.card').classList.remove('lp-card-flash'), 750);
+    const glyphs = ['✨','🌟','💫','⭐','✨'];
+    for (let i = 0; i < 7; i++) {
+        const s = document.createElement('span');
+        s.className = 'lp-sparkle';
+        s.textContent = glyphs[i % glyphs.length];
+        s.style.left = (35 + Math.random() * 30) + '%';
+        s.style.top  = (35 + Math.random() * 25) + '%';
+        s.style.animationDelay = (i * 60) + 'ms';
+        body.appendChild(s);
+        setTimeout(() => s.remove(), 1300);
+    }
+}
+
+/* ---------- 3. Per-card update logic ---------- */
+function renderHistory(card, history) {
+    const wrap = card.querySelector('.lp-history');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    const total = history.length;
+    history.forEach((cell, i) => {
+        const span = document.createElement('span');
+        let cls = 'lp-history-cell';
+        if (cell.status === 1) cls += ' lp-cell-done';
+        else if (cell.status === 0) cls += ' lp-cell-miss';
+        if (i >= total - 3) cls += ' lp-cell-window';
+        span.className = cls;
+        const label = cell.status === 1 ? 'completed' : cell.status === 0 ? 'missed' : 'no entry';
+        span.title = cell.date + ': ' + label;
+        wrap.appendChild(span);
+    });
+}
+
+function applyHabitView(card, habit) {
+    const pct = Math.round(habit.prob_fail * 100);
+
+    // SMART target line
+    const targetWrap = card.querySelector('.lp-target');
+    if (targetWrap) {
+        const measure = habit.target_measure ? '\u{1F3AF} ' + habit.target_measure : '';
+        const time = habit.target_time ? (measure ? ' · ' : '') + '⏰ ' + habit.target_time : '';
+        targetWrap.querySelector('.lp-target-measure').textContent = measure;
+        targetWrap.querySelector('.lp-target-time').textContent = time;
+        targetWrap.style.display = (measure || time) ? '' : 'none';
+    }
+
+    // Status badge
+    const badge = card.querySelector('.lp-status-badge');
+    badge.classList.remove('bg-success', 'bg-danger', 'bg-secondary');
+    if (habit.today_status === 1) { badge.classList.add('bg-success'); badge.textContent = 'Lit it up today ✨'; }
+    else if (habit.today_status === 0) { badge.classList.add('bg-danger'); badge.textContent = 'Slipped today'; }
+    else { badge.classList.add('bg-secondary'); badge.textContent = 'Awaiting you'; }
+
+    // Streak
+    card.querySelector('.lp-streak').innerHTML = '\u{1F525} ' + habit.streak + '-day streak';
+
+    // Risk meter + label (glow when above the intervention threshold)
+    card.querySelector('.lp-prob').textContent = pct + '%';
+    const meter = card.querySelector('.risk-meter');
+    meter.querySelector('.lp-meter-bar').style.width = pct + '%';
+    meter.classList.toggle('lp-meter-hot', pct >= THRESHOLD);
+    card.querySelector('.lp-fallback').style.display = habit.used_fallback ? '' : 'none';
+
+    // 30-day sparkline (rightmost three cells = the window the model reads)
+    renderHistory(card, habit.history_30d || []);
+
+    // Check-in button visibility
+    card.querySelector('.lp-checkin-wrap').style.display = habit.today_status === 1 ? 'none' : '';
+
+    // Intervention block
+    const wrap = card.querySelector('.lp-intervention-wrap');
+    if (habit.at_risk && habit.intervention) {
+        wrap.style.display = '';
+        wrap.classList.remove('lp-fade-in'); void wrap.offsetWidth; wrap.classList.add('lp-fade-in');
+        const typeLabel = habit.intervention.type.replace(/_/g, ' ')
+            .replace(/\w\S*/g, t => t.charAt(0).toUpperCase() + t.slice(1));
+        card.querySelector('.lp-intervention-type').textContent = typeLabel + ':';
+        card.querySelector('.lp-intervention-msg').textContent = ' ' + habit.intervention.message;
+        const srcWrap = card.querySelector('.lp-intervention-source-wrap');
+        if (habit.intervention.source) {
+            srcWrap.style.display = '';
+            card.querySelector('.lp-intervention-source').textContent = habit.intervention.source;
+        } else { srcWrap.style.display = 'none'; }
+    } else {
+        wrap.style.display = 'none';
+    }
+}
+
+/* ---------- 4. Card factory for AJAX-added habits ---------- */
+function renderHabitCard(habit) {
+    const col = document.createElement('div');
+    col.className = 'col-md-6 mb-4 habit-col lp-fade-in';
+    col.dataset.habitId = habit.id;
+    col.innerHTML = `
+        <div class="card h-100 lp-clickable" tabindex="0" role="button">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="d-flex align-items-center mb-1">
+                            <h4 class="card-title mb-0 me-2"></h4>
+                            <button type="button" class="btn btn-sm btn-outline-danger border-0 p-1 lp-delete" title="Delete habit">&#128465;&#65039;</button>
+                        </div>
+                        <span class="badge bg-secondary lp-category"></span>
+                        <div class="lp-target meta mt-1" style="display:none">
+                            <span class="lp-target-measure"></span>
+                            <span class="lp-target-time"></span>
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <span class="badge rounded-pill d-block mb-1 lp-status-badge"></span>
+                        <span class="badge bg-warning text-dark px-2 py-1 shadow-sm lp-streak"></span>
+                    </div>
+                </div>
+                <div class="mt-3 meta">
+                    Risk of slipping today: <strong class="lp-prob"></strong>
+                    <em class="lp-fallback" style="display:none">(quietly learning your pattern&hellip;)</em>
+                </div>
+                <div class="risk-meter mt-1 shadow-sm"><div class="lp-meter-bar" style="width:0%"></div></div>
+                <div class="lp-history" aria-label="Your last 30 days"></div>
+                <div class="lp-history-legend">Your last 30 days. The brighter three cells guide today&rsquo;s call.</div>
+                <div class="lp-checkin-wrap mt-3">
+                    <button type="button" class="btn btn-outline-success btn-sm w-100 fw-bold shadow-sm lp-checkin">&check; I did it &#x2728;</button>
+                </div>
+                <div class="lp-intervention-wrap" style="display:none">
+                    <div class="ai-warning mt-3 shadow-sm">
+                        <strong>A little nudge for you.</strong> You&rsquo;re drifting &mdash; let&rsquo;s pull you back on the path.
+                    </div>
+                    <div class="intervention shadow-sm lp-intervention-card">
+                        <strong class="lp-intervention-type"></strong> <span class="lp-intervention-msg"></span>
+                        <div class="lp-intervention-source-wrap" style="display:none">
+                            <br><small class="text-muted">&mdash; <span class="lp-intervention-source"></span></small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+    col.querySelector('.card-title').textContent = habit.name;
+    col.querySelector('.lp-category').textContent = habit.category;
+    applyHabitView(col, habit);
+    return col;
+}
+
+/* ---------- 5. Event delegation: check-in + delete ---------- */
+async function postJSON(url) {
+    const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    if (!resp.ok) throw new Error('Request failed: ' + resp.status);
+    return resp.json();
+}
+
+habitGrid.addEventListener('click', async (ev) => {
+    const checkBtn = ev.target.closest('.lp-checkin');
+    const delBtn = ev.target.closest('.lp-delete');
+    const card = ev.target.closest('.habit-col');
+    if (!card) return;
+    const habitId = card.dataset.habitId;
+
+    // Anywhere on the card that isn't an action button opens the detail modal.
+    if (!checkBtn && !delBtn) {
+        openHabitDetail(habitId);
+        return;
+    }
+
+    if (checkBtn) {
+        checkBtn.disabled = true;
+        try {
+            const data = await postJSON('/check_in/' + habitId);
+            applyHabitView(card, data.habit);
+            celebrateCheckin(card);
+            rebuildChartFromGrid();
+        } catch (e) {
+            checkBtn.disabled = false;
+            alert('Could not save that one — please refresh and try again.');
+        }
+    } else if (delBtn) {
+        if (!confirm('Are you sure you want to permanently delete this target and all its historical tracking data?')) return;
+        delBtn.disabled = true;
+        try {
+            await postJSON('/delete_habit/' + habitId);
+            card.classList.add('lp-fade-out');
+            setTimeout(() => { card.remove(); rebuildChartFromGrid(); }, 350);
+        } catch (e) {
+            delBtn.disabled = false;
+            alert('Could not delete habit. Please refresh and try again.');
+        }
+    }
+});
+
+/* Card keyboard activation: Enter/Space opens the detail modal for the focused card. */
+habitGrid.addEventListener('keydown', (ev) => {
+    const card = ev.target.closest('.lp-clickable');
+    if (!card) return;
+    if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault();
+        const habitCol = card.closest('.habit-col');
+        if (habitCol) openHabitDetail(habitCol.dataset.habitId);
+    }
+});
+
+/* ---------- 6a. Habit detail modal ---------- */
+const detailModalEl = document.getElementById('habitDetailModal');
+const detailModal = new bootstrap.Modal(detailModalEl);
+
+function renderDetailHistory(history) {
+    const wrap = document.getElementById('detailHistory');
+    wrap.innerHTML = '';
+    const total = history.length;
+    history.forEach((cell, i) => {
+        const span = document.createElement('span');
+        let cls = 'lp-history-cell';
+        if (cell.status === 1) cls += ' lp-cell-done';
+        else if (cell.status === 0) cls += ' lp-cell-miss';
+        if (i >= total - 3) cls += ' lp-cell-window';
+        span.className = cls;
+        const label = cell.status === 1 ? 'completed' : cell.status === 0 ? 'missed' : 'no entry';
+        span.title = cell.date + ': ' + label;
+        wrap.appendChild(span);
+    });
+}
+
+// Warm, condition-aware narration of what TheLightPath is seeing for this habit.
+// Picks one line at random from a small bank per state so the page feels alive.
+function explainPrediction(habit, modelWindow) {
+    const pct = Math.round(habit.prob_fail * 100);
+    const today = habit.today_status;
+    const completed = modelWindow.filter(c => c.status === 1).length;
+    const missed    = modelWindow.filter(c => c.status === 0).length;
+    const blanks    = modelWindow.filter(c => c.status === null).length;
+    const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
+    if (today === 1) return pick([
+        `You’ve already lit this one up today — that’s the path. Risk dropped to ${pct}%.`,
+        `Today is done and dusted. ${pct}% risk on the board, and you’re glowing.`,
+        `One tick, one win. You’re walking the right path; ${pct}% risk is the proof.`,
+    ]);
+
+    if (habit.used_fallback) {
+        if (blanks === 3) return pick([
+            `Brand-new habit — let’s start writing your story. Holding gently at ${pct}% until you tick a few days.`,
+            `Fresh path, fresh light. Tap “I did it” once and we’re away.`,
+            `No history yet, so we’re sitting at a soft ${pct}%. The first step is always the bravest.`,
+        ]);
+        return pick([
+            `Your last few days have a gap or two, so we’re reading the room gently at ${pct}%. A check-in today brings the light back.`,
+            `Still learning your rhythm — a couple more days and the prediction sharpens up. For now: ${pct}%.`,
+            `The pattern isn’t clear enough to be bold yet — sitting at ${pct}% and rooting for you.`,
+        ]);
+    }
+
+    if (completed === 3) return pick([
+        `Three for three. You’re lighting up your days — only ${pct}% risk today. Don’t break the spell.`,
+        `Clean week, clean window. ${pct}% risk and the path is wide open.`,
+        `Every recent day is green. Today wants to join them — risk is just ${pct}%.`,
+    ]);
+
+    if (missed === 3) return pick([
+        `Three quiet days. It’s ${pct}% risk on the screen, but a single tick today turns the whole story around.`,
+        `Trajectory is dim — ${pct}% risk. But every comeback starts with one small move; you know what to do.`,
+        `The streak slipped, not you. ${pct}% risk now; one tick today puts the light back on.`,
+    ]);
+
+    if (pct >= 40) return pick([
+        `You’re drifting a touch — ${pct}% risk, which is why a nudge popped up. One quick win pulls you back on the path.`,
+        `The week has been patchy and risk has crept to ${pct}%. Don’t wait for motivation; momentum follows action.`,
+        `${pct}% risk and rising. A two-minute version of this habit, right now, would change everything.`,
+    ]);
+
+    return pick([
+        `Mostly on track — risk is a calm ${pct}%. Keep walking the right path; today wants to be green.`,
+        `You’re trending well. ${pct}% risk says the light’s still on; let’s top it up.`,
+        `Not a perfect week, but the path is clear. ${pct}% risk and the next tick is yours.`,
+    ]);
+}
+
+async function openHabitDetail(habitId) {
+    document.getElementById('detailTitle').textContent = 'Loading…';
+    document.getElementById('detailExplain').textContent = '';
+    detailModal.show();
+    try {
+        const resp = await fetch('/api/habit/' + habitId, { headers: { 'Accept': 'application/json' } });
+        if (!resp.ok) throw new Error('detail failed');
+        const data = await resp.json();
+        const h = data.habit;
+        const s = data.stats;
+
+        document.getElementById('detailTitle').textContent = h.name;
+        document.getElementById('detailCategory').textContent = h.category;
+        const targetBits = [];
+        if (h.target_measure) targetBits.push('🎯 ' + h.target_measure);
+        if (h.target_time) targetBits.push('⏰ ' + h.target_time);
+        document.getElementById('detailTarget').textContent = targetBits.join('  ·  ');
+        document.getElementById('detailCreated').textContent =
+            data.created_at ? 'Tracking since ' + new Date(data.created_at).toLocaleDateString('en-GB') : '';
+
+        document.getElementById('detailRisk').textContent = Math.round(h.prob_fail * 100) + '%';
+        document.getElementById('detailStreak').textContent = h.streak + 'd';
+        document.getElementById('detailCompleted').textContent = s.completed_30 + ' / 30';
+        document.getElementById('detailBest').textContent = s.best_streak_30 + 'd';
+
+        renderDetailHistory(h.history_30d);
+        document.getElementById('detailExplain').textContent =
+            explainPrediction(h, data.model_window);
+
+        const ul = document.getElementById('detailInterventions');
+        ul.innerHTML = '';
+        if (!data.recent_interventions.length) {
+            const li = document.createElement('li');
+            li.className = 'list-group-item text-muted';
+            li.textContent = 'None recorded for this habit yet.';
+            ul.appendChild(li);
+        } else {
+            data.recent_interventions.forEach(r => {
+                const li = document.createElement('li');
+                li.className = 'list-group-item';
+                const when = r.triggered_at ? new Date(r.triggered_at.replace(' ', 'T') + 'Z').toLocaleString('en-GB') : '';
+                li.innerHTML = `<small class="text-muted d-block">${when}</small>${r.intervention_message}`;
+                ul.appendChild(li);
+            });
+        }
+    } catch (e) {
+        document.getElementById('detailTitle').textContent = 'Could not load';
+        document.getElementById('detailExplain').textContent = 'Please close this dialogue and try again.';
+    }
+}
+
+/* ---------- 6. Daily insight panel ---------- */
+let lastInsightId = null;
+async function loadInsight() {
+    const body = document.getElementById('insightBody');
+    body.classList.remove('lp-fade-in');
+    try {
+        const url = '/api/insight' + (lastInsightId ? '?exclude=' + lastInsightId : '');
+        const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        if (!resp.ok) throw new Error('insight failed');
+        const data = await resp.json();
+        const ins = data.insight;
+        if (!ins) {
+            document.getElementById('insightMessage').textContent = 'No insights available yet.';
+            document.getElementById('insightSource').textContent = '';
+            return;
+        }
+        lastInsightId = ins.id;
+        document.getElementById('insightMessage').textContent = '“' + ins.message + '”';
+        document.getElementById('insightSource').textContent =
+            (ins.source ? '— ' + ins.source : '') +
+            (ins.category ? '  ·  ' + ins.category : '');
+        void body.offsetWidth;
+        body.classList.add('lp-fade-in');
+    } catch (_) {
+        document.getElementById('insightMessage').textContent = 'Could not load an insight right now.';
+        document.getElementById('insightSource').textContent = '';
+    }
+}
+document.getElementById('insightRefresh').addEventListener('click', loadInsight);
+loadInsight();
+
+/* ---------- 6b. Ask the Path chat ---------- */
+const chatLauncher = document.getElementById('chatLauncher');
+const chatPanel = document.getElementById('chatPanel');
+const chatBody = document.getElementById('chatBody');
+const chatForm = document.getElementById('chatForm');
+const chatInput = document.getElementById('chatInput');
+const chatClose = chatPanel.querySelector('.lp-chat-close');
+
+function appendChatMsg(text, who) {
+    const div = document.createElement('div');
+    div.className = 'lp-chat-msg ' + who;
+    div.textContent = text;
+    chatBody.appendChild(div);
+    chatBody.scrollTop = chatBody.scrollHeight;
+    return div;
+}
+
+chatLauncher.addEventListener('click', () => {
+    const visible = chatPanel.classList.toggle('show');
+    if (visible) setTimeout(() => chatInput.focus(), 100);
+});
+chatClose.addEventListener('click', () => chatPanel.classList.remove('show'));
+
+chatForm.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const text = chatInput.value.trim();
+    if (!text) return;
+    appendChatMsg(text, 'user');
+    chatInput.value = '';
+    const typing = appendChatMsg('typing…', 'bot');
+    typing.classList.add('lp-chat-typing');
+    try {
+        const resp = await fetch('/api/chat', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+            body: JSON.stringify({message: text}),
+        });
+        if (!resp.ok) throw new Error('chat failed');
+        const data = await resp.json();
+        typing.remove();
+        appendChatMsg(data.reply, 'bot');
+    } catch (e) {
+        typing.remove();
+        appendChatMsg("Sorry — I couldn't reach the path just now. Please try again.", 'bot');
+    }
+});
+
+/* ---------- 7. Add-habit form -> AJAX ---------- */
+const addModalEl = document.getElementById('addHabitModal');
+const addForm = addModalEl.querySelector('form');
+addForm.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const submitBtn = addForm.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    try {
+        const resp = await fetch('/add_habit', {
+            method: 'POST',
+            body: new FormData(addForm),
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        });
+        if (!resp.ok) throw new Error('Add failed');
+        const data = await resp.json();
+        habitGrid.appendChild(renderHabitCard(data.habit));
+        rebuildChartFromGrid();
+        addForm.reset();
+        bootstrap.Modal.getInstance(addModalEl).hide();
+    } catch (e) {
+        alert('Could not add habit. Please check the form and try again.');
+    } finally {
+        submitBtn.disabled = false;
+    }
+});
 </script>
 
 </body>

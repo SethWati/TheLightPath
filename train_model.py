@@ -5,15 +5,20 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, classification_report
 import joblib
 
+CATEGORIES = ['Health', 'Learning', 'Productivity']
+
+
 def train_lightpath_ai():
     print("1. Connecting to the database...")
     conn = sqlite3.connect('lightpath.db')
-    
-    # For all check-ins, ordered by habit and date
+
+    # JOIN check_ins with habits so the algorithm can also see WHICH category
+    # the habit belongs to (Health / Learning / Productivity). 
     query = """
-    SELECT habit_id, check_in_date, status 
-    FROM check_ins 
-    ORDER BY habit_id, check_in_date
+    SELECT c.habit_id, c.check_in_date, c.status, h.category
+    FROM check_ins AS c
+    JOIN habits   AS h ON h.id = c.habit_id
+    ORDER BY c.habit_id, c.check_in_date
     """
     df = pd.read_sql_query(query, conn)
     conn.close()
@@ -28,10 +33,16 @@ def train_lightpath_ai():
     # Drop the first 3 days for each habit since they don't have enough history to make a prediction
     df = df.dropna()
 
-    # Define our Features (X) and our Target (y)
-    # X = The past 3 days of habits. y = What they actually did today.
-    X = df[['prev_1', 'prev_2', 'prev_3']]
-    y = df['status']
+    # One-hot encode the category. Forcing a fixed CATEGORIES order guarantees
+    # the columns are identical at train-time and at predict-time even if a
+    # category happens to be missing from the live data.
+    df['category'] = pd.Categorical(df['category'], categories=CATEGORIES)
+    category_dummies = pd.get_dummies(df['category'], prefix='cat').astype(int)
+
+    # Features (X): 3-day window + category dummies. Target (y): today's outcome.
+    prev_cols = df[['prev_1', 'prev_2', 'prev_3']].astype(int)
+    X = pd.concat([prev_cols, category_dummies], axis=1)
+    y = df['status'].astype(int)
 
     print("3. Splitting data into Training and Testing sets...")
     # 80% of data to train the AI, 20% to test it like a final exam
