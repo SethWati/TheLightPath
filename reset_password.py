@@ -14,10 +14,12 @@ a single-use token, but for a prototype the terminal tool is the right
 level of complexity.
 """
 
+import os
 import sqlite3
 from werkzeug.security import generate_password_hash
 
-DATABASE = 'lightpath.db'
+# Anchor to the script folder — same reason as every other script in here.
+DATABASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lightpath.db')
 
 def reset_password():
     print("=== TheLightPath: Admin Password Reset ===")

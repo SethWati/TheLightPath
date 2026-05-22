@@ -14,10 +14,13 @@ The web /register route does the same job for end users — this is just the
 back-door for me as the developer.
 """
 
+import os
 import sqlite3
 from werkzeug.security import generate_password_hash
 
-DATABASE = 'lightpath.db'
+# Anchor to the script folder so PowerShell's current directory doesn't
+# accidentally land us in the wrong database.
+DATABASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lightpath.db')
 
 def create_secure_user():
     print("=== TheLightPath: Secure User Registration ===")

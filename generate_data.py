@@ -15,12 +15,17 @@ It wipes existing check_ins / habits / users first so we always start from
 a clean slate. Then we re-train the model on top of this fresh data.
 """
 
+import os
 import sqlite3
 import random
 from datetime import datetime, timedelta
 
+# Anchor the DB path to this file's folder — see database_setup.py for the
+# story behind why this matters.
+DATABASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lightpath.db')
+
 def generate_synthetic_data():
-    conn = sqlite3.connect('lightpath.db')
+    conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
 
     print("1. Clearing old data to start fresh...")

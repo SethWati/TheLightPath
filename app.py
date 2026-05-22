@@ -32,6 +32,7 @@ file, it's how it sits cleanly between the database and the templates.
 """
 
 from datetime import date, timedelta
+import os
 import random
 import sqlite3
 
@@ -41,11 +42,14 @@ from flask import Flask, render_template, redirect, url_for, request, session, f
 from werkzeug.security import generate_password_hash, check_password_hash
 
 # --- App-wide constants -----------------------------------------------------
-# Where the SQLite file lives, and where the trained model sits as a pickled
-# scikit-learn object. Both stay in the project root so the prototype is
-# completely self-contained — copy the folder, run app.py, you're away.
-DATABASE = 'lightpath.db'
-MODEL_PATH = 'lightpath_ai_model.pkl'
+# Anchor every path to THIS file's folder, not the current working directory.
+# If we used a plain 'lightpath.db' and someone ran the script from a parent
+# folder, Python would silently create a fresh empty DB there — which is
+# exactly the trap I once fell into. Anchoring it here means the prototype
+# always finds its own database no matter where it's launched from.
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATABASE = os.path.join(BASE_DIR, 'lightpath.db')
+MODEL_PATH = os.path.join(BASE_DIR, 'lightpath_ai_model.pkl')
 
 # The big one: if the model thinks there's a 40% or higher chance the user
 # is about to fail today, we trip an intervention. The report justifies the

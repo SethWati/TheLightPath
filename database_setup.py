@@ -20,12 +20,18 @@ the interventions table is the diary — keeps the schema normalised and
 stops us from copy-pasting the same quote into hundreds of audit rows.
 """
 
+import os
 import sqlite3
+
+# Anchor the database path to THIS file's folder, not the current working
+# directory — otherwise running the script from a parent folder silently
+# creates a stray empty database in the wrong place.
+DATABASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lightpath.db')
 
 def create_database():
     print("Initialising TheLightPath Database...")
 
-    conn = sqlite3.connect('lightpath.db')
+    conn = sqlite3.connect(DATABASE)
     # CASCADE deletes only fire when foreign keys are switched on per connection.
     # SQLite leaves it off by default — must remember to turn it on every time.
     conn.execute('PRAGMA foreign_keys = ON')

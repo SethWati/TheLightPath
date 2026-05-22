@@ -29,9 +29,11 @@ Insight engine rules (see app.py):
 
 Run `python seed_interventions.py` any time to refresh the library.
 """
+import os
 import sqlite3
 
-DATABASE = 'lightpath.db'
+# Anchor to the script folder — see database_setup.py for why this matters.
+DATABASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lightpath.db')
 
 
 def seed_database():

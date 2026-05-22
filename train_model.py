@@ -26,12 +26,19 @@ What it does, in plain English:
 Run with:   python train_model.py
 """
 
+import os
 import sqlite3
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, classification_report
 import joblib
+
+# Anchor both paths to this file's folder — so `python TheLightPath/train_model.py`
+# works correctly regardless of which folder PowerShell is sitting in.
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATABASE = os.path.join(BASE_DIR, 'lightpath.db')
+MODEL_PATH = os.path.join(BASE_DIR, 'lightpath_ai_model.pkl')
 
 # Locked-in order for the one-hot category columns. Keeping this fixed means
 # the predict-time code can match column order exactly even if the live data
@@ -41,7 +48,7 @@ CATEGORIES = ['Health', 'Learning', 'Productivity']
 
 def train_lightpath_ai():
     print("1. Connecting to the database...")
-    conn = sqlite3.connect('lightpath.db')
+    conn = sqlite3.connect(DATABASE)
 
     # JOIN check_ins with habits so the algorithm can also see WHICH category
     # the habit belongs to (Health / Learning / Productivity). 
@@ -94,7 +101,7 @@ def train_lightpath_ai():
 
     print("6. Saving the 'Brain' to your project folder...")
     # Saves trained model as a file so web app can use it later without retraining
-    joblib.dump(model, 'lightpath_ai_model.pkl')
+    joblib.dump(model, MODEL_PATH)
     print("Success! 'lightpath_ai_model.pkl' has been saved.")
 
 if __name__ == '__main__':
