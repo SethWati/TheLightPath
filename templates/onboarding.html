@@ -1,3 +1,27 @@
+{#
+   onboarding.html — "First Light"
+   ================================
+   The little getting-to-know-you page that sits between registration and
+   the dashboard. The name "First Light" plays on the "TheLightPath" theme —
+   it's the dawn before walking the path.
+
+   It captures everything we need to TAILOR the app to the user without
+   ever feeling intrusive:
+     - Who they are: faith / worldview, ethnicity, age band, occupation,
+                     relationship status.
+     - What lights them up: hobbies, foods they enjoy, the small things
+                            that make a day a good day.
+
+   Every single field is optional and the "Skip for now" link is right
+   there. We're not gatekeeping the dashboard behind a form — we're just
+   letting users help themselves get a better experience.
+
+   The backend (/onboarding in app.py) writes the answers into the
+   user_profile table. The insight engine and intervention picker then
+   use that profile to filter what the user sees — so an atheist user
+   never gets Bible verses, a Buddhist user can opt in to Buddhist
+   sources, and so on. Fair to everyone, comfortable for each.
+#}
 <!DOCTYPE html>
 <html lang="en">
 <head>

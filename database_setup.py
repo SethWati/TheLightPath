@@ -1,10 +1,33 @@
+"""
+database_setup.py — the schema, lives in one place
+==================================================
+
+Run this once (or any time the schema changes) and it'll create every table
+TheLightPath needs in the lightpath.db file. It uses CREATE TABLE IF NOT
+EXISTS so it's safe to re-run — existing data stays put.
+
+The six tables are:
+    users               — login info (hashed password)
+    user_profile        — what we learn at "First Light" onboarding
+    habits              — the user's actual targets, with category + SMART
+                          fields (measurable target + time)
+    check_ins           — one row per habit per day, status 0 or 1
+    interventions       — the AUDIT LOG of nudges actually delivered
+    intervention_library— the static CATALOGUE of nudges we can choose from
+
+Two tables for interventions is on purpose. The library is the dictionary,
+the interventions table is the diary — keeps the schema normalised and
+stops us from copy-pasting the same quote into hundreds of audit rows.
+"""
+
 import sqlite3
 
 def create_database():
     print("Initialising TheLightPath Database...")
 
     conn = sqlite3.connect('lightpath.db')
-    # ON DELETE CASCADE only takes effect when foreign keys are enabled per connection.
+    # CASCADE deletes only fire when foreign keys are switched on per connection.
+    # SQLite leaves it off by default — must remember to turn it on every time.
     conn.execute('PRAGMA foreign_keys = ON')
     cursor = conn.cursor()
 

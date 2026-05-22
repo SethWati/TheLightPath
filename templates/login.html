@@ -1,3 +1,16 @@
+{#
+   login.html — the sign-in screen
+   ================================
+   Plain front door. Returning users type their username + password and
+   POST it to /login (which app.py handles). On success, Flask sets the
+   session cookie and bounces them to the dashboard.
+
+   The styling is its own self-contained CSS block (no Bootstrap dark-mode
+   classes here — we control everything with CSS variables and a
+   body.dark-mode toggle, same idea as the dashboard).
+
+   Small button at the bottom links across to /register for first-timers.
+#}
 <!DOCTYPE html>
 <html lang="en">
 <head>

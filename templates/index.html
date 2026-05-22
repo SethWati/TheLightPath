@@ -1,9 +1,29 @@
+{#
+   index.html — the main dashboard
+   ================================
+   This is the page the user lives on. Everything important happens here:
+   today's insight, the chart of "Current targets", every habit card with
+   its sparkline and intervention block, the Ask the Path chat, the add /
+   detail modals, and the dark-mode toggle.
+
+   The flow:
+     1. Jinja renders the initial HTML on the server using the habit views
+        that app.py's home() route builds.
+     2. Bootstrap 5 handles the layout and Chart.js does the bar chart.
+     3. The <script> block at the bottom is the AJAX layer — fetch() calls
+        keep the page live without full reloads.
+
+   If you can't see anything in your browser, hard-refresh first (Ctrl+F5).
+   Browsers love caching JavaScript.
+#}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TheLightPath | Dashboard</title>
+    {# Bootstrap for layout + Chart.js for the bar graph. Both loaded from a
+       CDN — keeps the project light, no node/npm needed. #}
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -403,18 +423,32 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
-/* ------------------------------------------------------------------
- * TheLightPath dashboard — dynamic AJAX layer
- * ------------------------------------------------------------------
- * The page is first rendered server-side through Jinja2 (matching the
- * architecture described in Chapter 3.3 of the report). Every later
- * interaction — check-in, add, delete — is routed through fetch() so
- * the dashboard updates in place. The Random Forest risk score, the
- * intervention card, the streak badge, and the Chart.js bar all
- * refresh without a full page reload, fulfilling the Just-In-Time
- * Adaptive Intervention claim that the interface "dynamically adapts
- * to the user's immediate psychological state".
- * ------------------------------------------------------------------ */
+/* ============================================================================
+ * THE DASHBOARD JS — what every click actually does
+ * ============================================================================
+ * Right, so the page is rendered server-side by Jinja2 first (that's the MVC
+ * story the report tells in Chapter 3.3). Once it's loaded, this script
+ * takes over and makes everything dynamic. No more full page reloads —
+ * every action goes through fetch() and only the bit that changed updates.
+ *
+ * The sections below, in order:
+ *   1. Theme toggle (light / dark mode + remembers the preference)
+ *   2. Chart.js setup — the "Current targets" bar chart
+ *   3. renderHistory() — paints the 30-day sparkline on a card
+ *   4. applyHabitView() — single place that updates ONE card from a
+ *      server view dict. Every AJAX response calls this.
+ *   5. renderHabitCard() — JS factory for when the user adds a habit
+ *      via the modal. Mirrors what _habit_card.html does on the server.
+ *   6. The click delegator — one listener on the grid, handles every
+ *      button (I did it, I missed today, Reset, Need advice, delete,
+ *      open detail).
+ *   6a. Habit detail modal.
+ *   6b. Ask the Path chat.
+ *   7. The add-habit form (turn the modal submit into AJAX).
+ *
+ * The goal: nothing stutters, nothing reloads, nothing feels "webby" in
+ * the bad sense. Just a calm screen that breathes with the user.
+ * ============================================================================ */
 
 const THRESHOLD = {{ (threshold * 100) | round }};
 const RISK_COLOUR_HI = 'rgba(220, 53, 69, 0.8)';
@@ -577,8 +611,25 @@ function applyHabitView(card, habit) {
     // 30-day sparkline (rightmost three cells = the window the model reads)
     renderHistory(card, habit.history_30d || []);
 
-    // Check-in button visibility
-    card.querySelector('.lp-checkin-wrap').style.display = habit.today_status === 1 ? 'none' : '';
+    // Check-in button visibility — hide once today is ticked off.
+    // Also re-enable both buttons inside the wrap so Reset truly resets:
+    // the user can click I-did-it or I-missed-today again freely.
+    const checkinWrap = card.querySelector('.lp-checkin-wrap');
+    if (checkinWrap) {
+        checkinWrap.style.display = habit.today_status === 1 ? 'none' : '';
+        checkinWrap.querySelectorAll('button').forEach(b => { b.disabled = false; });
+    }
+
+    // Reset is only useful when there's a today entry to clear.
+    // Need-advice-now is always clickable.
+    const resetBtn = card.querySelector('.lp-reset');
+    if (resetBtn) {
+        const hasEntry = habit.today_status === 1 || habit.today_status === 0;
+        resetBtn.style.display = hasEntry ? '' : 'none';
+        resetBtn.disabled = false;
+    }
+    const nudgeBtn = card.querySelector('.lp-force-nudge');
+    if (nudgeBtn) nudgeBtn.disabled = false;
 
     // Intervention block
     const wrap = card.querySelector('.lp-intervention-wrap');
@@ -631,8 +682,13 @@ function renderHabitCard(habit) {
                 <div class="risk-meter mt-1 shadow-sm"><div class="lp-meter-bar" style="width:0%"></div></div>
                 <div class="lp-history" aria-label="Your last 30 days"></div>
                 <div class="lp-history-legend">Your last 30 days. The brighter three cells guide today&rsquo;s call.</div>
-                <div class="lp-checkin-wrap mt-3">
-                    <button type="button" class="btn btn-outline-success btn-sm w-100 fw-bold shadow-sm lp-checkin">&check; I did it &#x2728;</button>
+                <div class="lp-checkin-wrap mt-3 d-flex gap-2">
+                    <button type="button" class="btn btn-outline-success btn-sm fw-bold shadow-sm lp-checkin flex-grow-1">&check; I did it &#x2728;</button>
+                    <button type="button" class="btn btn-outline-danger btn-sm fw-bold shadow-sm lp-missed flex-grow-1">&times; I missed today</button>
+                </div>
+                <div class="mt-2 d-flex gap-2 justify-content-between align-items-center" style="font-size: 0.78rem;">
+                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 lp-reset" title="Clear today's entry so you can pick again" style="display:none">&#x21BA; Reset</button>
+                    <button type="button" class="btn btn-outline-warning btn-sm py-0 px-2 lp-force-nudge" title="Show me an encouragement right now">&#x1F4A1; Need advice now</button>
                 </div>
                 <div class="lp-intervention-wrap" style="display:none">
                     <div class="ai-warning mt-3 shadow-sm">
@@ -665,13 +721,16 @@ async function postJSON(url) {
 
 habitGrid.addEventListener('click', async (ev) => {
     const checkBtn = ev.target.closest('.lp-checkin');
+    const missedBtn = ev.target.closest('.lp-missed');
+    const resetBtn = ev.target.closest('.lp-reset');
+    const nudgeBtn = ev.target.closest('.lp-force-nudge');
     const delBtn = ev.target.closest('.lp-delete');
     const card = ev.target.closest('.habit-col');
     if (!card) return;
     const habitId = card.dataset.habitId;
 
     // Anywhere on the card that isn't an action button opens the detail modal.
-    if (!checkBtn && !delBtn) {
+    if (!checkBtn && !missedBtn && !resetBtn && !nudgeBtn && !delBtn) {
         openHabitDetail(habitId);
         return;
     }
@@ -686,6 +745,35 @@ habitGrid.addEventListener('click', async (ev) => {
         } catch (e) {
             checkBtn.disabled = false;
             alert('Could not save that one — please refresh and try again.');
+        }
+    } else if (missedBtn) {
+        missedBtn.disabled = true;
+        try {
+            const data = await postJSON('/mark_missed/' + habitId);
+            applyHabitView(card, data.habit);
+            rebuildChartFromGrid();
+        } catch (e) {
+            missedBtn.disabled = false;
+            alert('Could not record that one — please refresh and try again.');
+        }
+    } else if (resetBtn) {
+        resetBtn.disabled = true;
+        try {
+            const data = await postJSON('/reset_today/' + habitId);
+            applyHabitView(card, data.habit);
+            rebuildChartFromGrid();
+        } catch (e) {
+            resetBtn.disabled = false;
+            alert('Could not reset today — please refresh and try again.');
+        }
+    } else if (nudgeBtn) {
+        nudgeBtn.disabled = true;
+        try {
+            const data = await postJSON('/force_nudge/' + habitId);
+            applyHabitView(card, data.habit);
+            rebuildChartFromGrid();
+        } finally {
+            nudgeBtn.disabled = false;
         }
     } else if (delBtn) {
         if (!confirm('Are you sure you want to permanently delete this target and all its historical tracking data?')) return;

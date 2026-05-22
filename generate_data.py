@@ -1,3 +1,20 @@
+"""
+generate_data.py — make-believe users and 30 days of pretend check-ins
+======================================================================
+
+Synthetic data, on purpose. The report explains why: real human habit data
+is heavily imbalanced (most days are successes), and waiting on ethics
+approval to collect real data would have killed an 8-week project. So this
+script builds a perfectly balanced laboratory dataset where roughly half
+the simulated users are on a "success trajectory" (85% completion) and
+half are on a "failing trajectory" (start strong, gradually decline).
+
+Run with:   python generate_data.py
+
+It wipes existing check_ins / habits / users first so we always start from
+a clean slate. Then we re-train the model on top of this fresh data.
+"""
+
 import sqlite3
 import random
 from datetime import datetime, timedelta

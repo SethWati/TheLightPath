@@ -1,3 +1,17 @@
+{#
+   register.html — "Begin your path"
+   ==================================
+   New visitors land here. Three fields: username, password, confirm
+   password. The backend (/register in app.py) does the proper validation —
+   it checks the username isn't already taken, hashes the password with
+   werkzeug's pbkdf2:sha256, and then signs the user in straight away.
+
+   Once registered, the user is bounced to /onboarding so we can capture
+   their First Light profile before they hit the dashboard.
+
+   Styling matches login.html and onboarding.html — same CSS variable
+   scheme, same animated rise-in, same dark-mode toggle. Consistency.
+#}
 <!DOCTYPE html>
 <html lang="en">
 <head>

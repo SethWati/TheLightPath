@@ -1,3 +1,31 @@
+"""
+train_model.py — offline trainer for the Random Forest
+======================================================
+
+This script is the AI side of TheLightPath. It runs ONCE in the terminal
+(not when the web app is live) and produces lightpath_ai_model.pkl, which
+the Flask app then loads at boot.
+
+What it does, in plain English:
+  1. Pulls every check-in row from the database, JOINed with the habit's
+     category. Category matters because the report's Chapter 3.2 explicitly
+     says the model reads it — a missed Health day isn't the same as a
+     missed Productivity day.
+  2. Reshapes the data into a 3-day sliding window using pandas .shift().
+     Each row becomes "yesterday, two days ago, three days ago" plus the
+     habit category, with today's actual outcome as the answer the model
+     should learn to predict.
+  3. Splits the data 80/20 — 80% to teach the model, 20% to test it on
+     stuff it's never seen (the "final exam").
+  4. Trains a Random Forest Classifier. 100 trees that each vote — averages
+     out their individual mistakes and avoids the model just memorising
+     the training data (overfitting).
+  5. Prints the accuracy score so I can sanity-check it, then dumps the
+     trained model to a .pkl file with joblib.
+
+Run with:   python train_model.py
+"""
+
 import sqlite3
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -5,6 +33,9 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, classification_report
 import joblib
 
+# Locked-in order for the one-hot category columns. Keeping this fixed means
+# the predict-time code can match column order exactly even if the live data
+# happens to be missing a category that day.
 CATEGORIES = ['Health', 'Learning', 'Productivity']
 
 

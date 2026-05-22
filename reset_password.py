@@ -1,3 +1,19 @@
+"""
+reset_password.py — admin-only password reset
+=============================================
+
+If a test user forgets their password (or I do), this is the lifeboat. Type
+the username, type a new password, and it overwrites the password_hash in
+the database with a fresh secure hash. Doesn't expose the old password —
+hashes are one-way by design.
+
+Run with:   python reset_password.py
+
+In a real production app this would happen through an email-link flow with
+a single-use token, but for a prototype the terminal tool is the right
+level of complexity.
+"""
+
 import sqlite3
 from werkzeug.security import generate_password_hash
 

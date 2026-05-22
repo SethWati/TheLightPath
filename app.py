@@ -1,3 +1,36 @@
+"""
+TheLightPath — main backend (app.py)
+====================================
+
+Right, so this file is the brain of TheLightPath. The whole app is built on a
+strict three-tier idea, which is what Chapter 3 of the report goes into in
+depth:
+
+  1. The DATA layer  — a SQLite database (see database_setup.py) that keeps
+                       users, habits, daily check-ins, and the library of
+                       proactive nudges. Self-cleaning thanks to CASCADE
+                       deletes, so we never end up with orphan data.
+  2. The LOGIC layer — this file. It speaks to the database, runs the
+                       Random Forest model that predicts failure, decides
+                       when the user is drifting, and serves the right page.
+  3. The VIEW layer  — Jinja2 templates in /templates. They render what the
+                       user actually sees.
+
+Flask is the framework holding it all together. Every @app.route() down
+below is basically saying "when the browser asks for this URL, do this".
+Some routes return rendered HTML; the API routes return JSON so the dashboard
+can update without a full page reload — that's the live, dynamic feel the
+report talks about in Chapter 3.3.
+
+If you're reading top to bottom, the order is:
+   constants → small helpers → ML prediction → worldview filtering →
+   build_habit_view (the view dict that goes everywhere) →
+   auth pages → dashboard → API endpoints → chat.
+
+I've kept the logic light and obvious on purpose. The clever bit isn't this
+file, it's how it sits cleanly between the database and the templates.
+"""
+
 from datetime import date, timedelta
 import random
 import sqlite3
@@ -7,29 +40,72 @@ import pandas as pd
 from flask import Flask, render_template, redirect, url_for, request, session, flash, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 
+# --- App-wide constants -----------------------------------------------------
+# Where the SQLite file lives, and where the trained model sits as a pickled
+# scikit-learn object. Both stay in the project root so the prototype is
+# completely self-contained — copy the folder, run app.py, you're away.
 DATABASE = 'lightpath.db'
 MODEL_PATH = 'lightpath_ai_model.pkl'
 
-# P(failure) at or above this triggers an intervention. 0.4 (rather than 0.5) errs on
-# the side of intervening, which matches the project's proactive-support thesis.
+# The big one: if the model thinks there's a 40% or higher chance the user
+# is about to fail today, we trip an intervention. The report justifies the
+# choice of 0.4 (rather than the usual 0.5) — we'd rather over-support a
+# user who's slightly wobbling than wait until they've already collapsed.
 RISK_THRESHOLD = 0.4
 
 app = Flask(__name__)
-# Secret key is required for Flask sessions to work securely
-app.secret_key = 'super_secret_lightpath_key_for_development' 
+# Flask needs a secret to sign session cookies. In a real production deploy
+# this would come from an environment variable, but for a prototype a fixed
+# string is fine — the data stored in the session is just the user_id.
+app.secret_key = 'super_secret_lightpath_key_for_development'
 
+# Load the Random Forest model once at boot. It's a small .pkl file that
+# train_model.py creates after training on the synthetic data. Keeping the
+# load at the module level means every request uses the same model object
+# in memory — no need to read the file from disk for every prediction.
 model = joblib.load(MODEL_PATH)
 
 
+# ============================================================================
+# SECTION 1 — Database helpers
+# ============================================================================
+# Tiny wrappers around sqlite3 so the rest of the file stays clean. Every
+# route that touches the database opens a fresh connection here, does its
+# thing, and closes. Short-lived connections are perfectly fine for SQLite.
+# ============================================================================
+
 def get_db():
+    """Open a connection to the SQLite file with two small but important
+    settings turned on.
+
+    `row_factory = sqlite3.Row` lets us read columns by name (e.g.
+    row['username']) instead of integer index — much easier to follow.
+
+    The PRAGMA turns on foreign-key enforcement, which SQLite leaves OFF by
+    default. We rely on FK + CASCADE so that, for example, deleting a user
+    cleans out their habits and check-ins automatically — no orphan data.
+    """
     conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row
     conn.execute('PRAGMA foreign_keys = ON')
     return conn
 
 
+# ============================================================================
+# SECTION 2 — Reading the user's history out of the database
+# ============================================================================
+# Two helpers here: one pulls the THREE-DAY window that feeds the Random
+# Forest, the other pulls the full THIRTY-DAY window for the sparkline on
+# each card. Both return statuses in the same simple shape: 1 = lit it up,
+# 0 = missed, None = no entry on that day at all.
+# ============================================================================
+
 def get_recent_history(conn, habit_id, today, days=3):
-    """Return [3-days-ago, 2-days-ago, yesterday] statuses (1/0/None for missing)."""
+    """Return [3-days-ago, 2-days-ago, yesterday] statuses (1/0/None for missing).
+
+    This is the input the Random Forest reads. The order matters — see the
+    note inside predict_failure() for why we line them up the way we do.
+    """
     cutoff = today - timedelta(days=days)
     rows = conn.execute(
         '''SELECT check_in_date, status FROM check_ins
@@ -72,12 +148,29 @@ def get_today_status(conn, habit_id, today):
     return row['status'] if row else None
 
 
+# ============================================================================
+# SECTION 3 — The Random Forest prediction (the AI bit)
+# ============================================================================
+# This is the heart of the proactive thesis. Given the user's last three
+# days plus the habit's category, the model spits out a probability that
+# today will be a failure. If the data has gaps, we fall back to a tiny
+# hand-coded rule — that's the "graceful degradation" the report promises
+# in its risk analysis.
+# ============================================================================
+
 def predict_failure(history, category):
     """Return (prob_failure, used_fallback).
 
-    Falls back to a simple rule when the 3-day window has gaps, satisfying the
-    risk mitigation in the project contract: "if the ML model struggles, use
-    simpler rules as a fallback to trigger the UI interventions."
+    Two things come out:
+      - prob_failure  : a number between 0 and 1. Closer to 1 means the model
+                        is more sure the user will miss today.
+      - used_fallback : True if we couldn't run the real model and had to
+                        use the hand-coded rule. The dashboard flags this
+                        visibly so the user knows they're not seeing AI yet.
+
+    Falls back to a simple rule when the 3-day window has gaps, exactly as
+    the project contract promises: "if the ML model struggles, use simpler
+    rules as a fallback to trigger the UI interventions."
     """
     if any(h is None for h in history):
         known = [h for h in history if h is not None]
@@ -104,12 +197,28 @@ def predict_failure(history, category):
     return float(probs[failure_idx]), False
 
 
+# ============================================================================
+# SECTION 4 — Worldview-aware library filtering
+# ============================================================================
+# The library has 100+ entries tagged with worldviews — christian, islamic,
+# buddhist, stoic, universal, and so on. These two helpers turn a user's
+# declared religion (captured at First Light onboarding) into the set of
+# tags they're allowed to see, and then prune the rows accordingly. This is
+# what makes TheLightPath fair to users of every faith and none — an
+# atheist user genuinely never sees a Bible verse.
+# ============================================================================
+
 def allowed_tags_for_religion(religion):
     """Map a user's declared religion to the set of library tags they're shown.
 
-    Always includes 'universal'. Secular content is shown to everyone except
-    the most conservative religious selection (we still show it to all here
-    because secular wisdom is generally well-received; tune later if needed).
+    Always includes 'universal' (physiology, modern psychology, plain
+    encouragement) because that's safe for everyone. Stoic gets a free pass
+    on top because Marcus Aurelius is, frankly, useful for anyone willing to
+    hear him out.
+
+    The rest is religion-aware: a Christian user gets Christian scripture
+    added to the pool, a Muslim user gets Qur'an and Hadith, and so on. If
+    the user picked "Prefer not to say", we keep things strictly secular.
     """
     base = {'universal', 'secular'}
     if not religion or religion in ('Prefer not to say',):
@@ -202,7 +311,18 @@ def get_current_streak(conn, habit_id, today):
     return streak
 
 
-def build_habit_view(conn, habit_row, today, log_new_interventions=True):
+# ============================================================================
+# SECTION 5 — The "view dict" for a habit
+# ============================================================================
+# This is the function the rest of the app revolves around. Give it a habit
+# row and a date, and it returns a fat little dictionary with everything
+# the dashboard needs: today's status, the model's failure probability, the
+# current streak, the 30-day sparkline data, and any intervention that
+# should fire. The home() route uses it on first render. The AJAX endpoints
+# return it as JSON. ONE function, ONE shape — keeps the frontend simple.
+# ============================================================================
+
+def build_habit_view(conn, habit_row, today, log_new_interventions=True, force_intervention=False):
     """Compute the full dashboard view for a single habit.
 
     Pulled out of home() so the AJAX endpoints (check_in, add_habit) can return
@@ -213,7 +333,12 @@ def build_habit_view(conn, habit_row, today, log_new_interventions=True):
     prob_fail, used_fallback = predict_failure(history, habit_row['category'])
     today_status = get_today_status(conn, habit_row['id'], today)
     current_streak = get_current_streak(conn, habit_row['id'], today)
-    at_risk = prob_fail >= RISK_THRESHOLD and today_status != 1
+    # Natural at_risk = the model is worried. force_intervention lets the
+    # "Need advice now" button surface a quote on demand even when the model
+    # is calm — useful for previewing the intervention pipeline or for users
+    # who simply want a lift. We still suppress it when today is already done.
+    at_risk_natural = prob_fail >= RISK_THRESHOLD and today_status != 1
+    at_risk = at_risk_natural or (force_intervention and today_status != 1)
     intervention = (
         pick_intervention(conn, habit_row['category'], user_id=session.get('user_id'))
         if at_risk else None
@@ -247,6 +372,16 @@ def wants_json():
 
 
 # --- NEW AUTHENTICATION ROUTES ---
+
+# ============================================================================
+# SECTION 6 — Auth pages: register, login, onboarding, logout
+# ============================================================================
+# Brand new visitor? They land on /register, pick a username and password,
+# and we send them straight into /onboarding ("First Light"). After that,
+# they hit / for the dashboard. Returning users go through /login as usual.
+# Sessions are how Flask remembers who's logged in — we just stash the
+# user_id in there and check for it at the top of every protected route.
+# ============================================================================
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -380,6 +515,15 @@ def logout():
 
 # --- PROTECTED HOME ROUTE ---
 
+# ============================================================================
+# SECTION 7 — The dashboard (/)
+# ============================================================================
+# This is what the user lands on once they're signed in. The route pulls
+# every habit they own, runs each one through build_habit_view to get the
+# full picture (risk, streak, history, intervention), and hands it all to
+# index.html. From there the JS layer takes over for clicks.
+# ============================================================================
+
 @app.route('/')
 def home():
     # Kick the user back to the login page if they don't have an active session
@@ -438,6 +582,16 @@ def _best_streak_from_history(history_30d):
             run = 0
     return best
 
+
+# ============================================================================
+# SECTION 8 — JSON API endpoints (the AJAX layer)
+# ============================================================================
+# These routes don't render pages. They return JSON so the dashboard can
+# update bits of itself without a full page reload. This is what makes
+# TheLightPath feel proper dynamic instead of clunky. Everything checks the
+# session at the top (so you can't poke around as another user) and verifies
+# habit ownership before doing anything — basic but real security.
+# ============================================================================
 
 @app.route('/api/habit/<int:habit_id>', methods=['GET'])
 def api_habit_detail(habit_id):
@@ -567,6 +721,15 @@ FOLLOWUPS = [
 ]
 
 
+# ----------------------------------------------------------------------------
+# Ask the Path — the chat
+# ----------------------------------------------------------------------------
+# The "semi-generative chatbot" the report mentions. No external LLM — just
+# a small keyword sniff to spot which habit category the user is talking
+# about and what mood they're in, then a warm opener + a library quote +
+# a follow-up question. Cheap, predictable, and offline.
+# ----------------------------------------------------------------------------
+
 @app.route('/api/chat', methods=['POST'])
 def api_chat():
     """Lightweight semi-generative advice channel.
@@ -683,6 +846,16 @@ def api_insight():
     return jsonify({'insight': chosen})
 
 
+# ----------------------------------------------------------------------------
+# The four action endpoints — check in, miss, reset, force a nudge
+# ----------------------------------------------------------------------------
+# All four follow the same shape: confirm the user is signed in, confirm
+# they actually own the habit, write to the check_ins table, then return
+# the updated view dict so the dashboard can refresh in place. The HTML
+# fallback (redirect to home) means the page still works if JavaScript is
+# disabled — graceful degradation, just like the report says.
+# ----------------------------------------------------------------------------
+
 @app.route('/check_in/<int:habit_id>', methods=['POST'])
 def check_in(habit_id):
     """Marks a habit as complete for today.
@@ -738,6 +911,153 @@ def check_in(habit_id):
     conn.close()
     return redirect(url_for('home'))
 
+
+@app.route('/mark_missed/<int:habit_id>', methods=['POST'])
+def mark_missed(habit_id):
+    """Marks a habit as missed for today (status = 0).
+
+    Same shape as /check_in but writes the opposite status so the user can
+    honestly log a slip. Returns JSON for AJAX, redirect otherwise.
+    """
+    if 'user_id' not in session:
+        if wants_json():
+            return jsonify({'error': 'unauthorised'}), 401
+        return redirect(url_for('login'))
+
+    today = date.today()
+    today_iso = today.isoformat()
+    conn = get_db()
+
+    habit = conn.execute(
+        '''SELECT id, habit_name, category, target_measure, target_time
+           FROM habits WHERE id = ? AND user_id = ?''',
+        (habit_id, session['user_id']),
+    ).fetchone()
+    if habit is None:
+        conn.close()
+        if wants_json():
+            return jsonify({'error': 'not found'}), 404
+        return redirect(url_for('home'))
+
+    existing = conn.execute(
+        'SELECT id FROM check_ins WHERE habit_id = ? AND check_in_date = ?',
+        (habit_id, today_iso),
+    ).fetchone()
+    if existing:
+        conn.execute('UPDATE check_ins SET status = 0 WHERE id = ?', (existing['id'],))
+    else:
+        conn.execute(
+            'INSERT INTO check_ins (habit_id, check_in_date, status) VALUES (?, ?, 0)',
+            (habit_id, today_iso),
+        )
+    conn.commit()
+
+    if wants_json():
+        view = build_habit_view(conn, habit, today, log_new_interventions=False)
+        conn.close()
+        return jsonify({'habit': view, 'threshold': RISK_THRESHOLD})
+
+    conn.close()
+    return redirect(url_for('home'))
+
+
+@app.route('/reset_today/<int:habit_id>', methods=['POST'])
+def reset_today(habit_id):
+    """Clear today's check-in row so the user can pick "I did it" or
+    "I missed today" afresh."""
+    if 'user_id' not in session:
+        if wants_json():
+            return jsonify({'error': 'unauthorised'}), 401
+        return redirect(url_for('login'))
+
+    today = date.today()
+    conn = get_db()
+    habit = conn.execute(
+        '''SELECT id, habit_name, category, target_measure, target_time
+           FROM habits WHERE id = ? AND user_id = ?''',
+        (habit_id, session['user_id']),
+    ).fetchone()
+    if habit is None:
+        conn.close()
+        if wants_json():
+            return jsonify({'error': 'not found'}), 404
+        return redirect(url_for('home'))
+
+    conn.execute(
+        'DELETE FROM check_ins WHERE habit_id = ? AND check_in_date = ?',
+        (habit_id, today.isoformat()),
+    )
+    conn.commit()
+
+    if wants_json():
+        view = build_habit_view(conn, habit, today, log_new_interventions=False)
+        conn.close()
+        return jsonify({'habit': view, 'threshold': RISK_THRESHOLD})
+
+    conn.close()
+    return redirect(url_for('home'))
+
+
+@app.route('/force_nudge/<int:habit_id>', methods=['POST'])
+def force_nudge(habit_id):
+    """Mark today as missed AND force a library quote to surface immediately.
+
+    Useful for previewing the intervention pipeline or for users who simply
+    want a piece of encouragement right now. The chart is unchanged — this
+    only sets today's status and forces at_risk in the response.
+    """
+    if 'user_id' not in session:
+        if wants_json():
+            return jsonify({'error': 'unauthorised'}), 401
+        return redirect(url_for('login'))
+
+    today = date.today()
+    today_iso = today.isoformat()
+    conn = get_db()
+    habit = conn.execute(
+        '''SELECT id, habit_name, category, target_measure, target_time
+           FROM habits WHERE id = ? AND user_id = ?''',
+        (habit_id, session['user_id']),
+    ).fetchone()
+    if habit is None:
+        conn.close()
+        if wants_json():
+            return jsonify({'error': 'not found'}), 404
+        return redirect(url_for('home'))
+
+    existing = conn.execute(
+        'SELECT id FROM check_ins WHERE habit_id = ? AND check_in_date = ?',
+        (habit_id, today_iso),
+    ).fetchone()
+    if existing:
+        conn.execute('UPDATE check_ins SET status = 0 WHERE id = ?', (existing['id'],))
+    else:
+        conn.execute(
+            'INSERT INTO check_ins (habit_id, check_in_date, status) VALUES (?, ?, 0)',
+            (habit_id, today_iso),
+        )
+    conn.commit()
+
+    if wants_json():
+        view = build_habit_view(
+            conn, habit, today,
+            log_new_interventions=True,
+            force_intervention=True,
+        )
+        conn.close()
+        return jsonify({'habit': view, 'threshold': RISK_THRESHOLD})
+
+    conn.close()
+    return redirect(url_for('home'))
+
+
+# ----------------------------------------------------------------------------
+# Adding and deleting habits
+# ----------------------------------------------------------------------------
+# Both go through the same ownership check pattern. Delete cascades through
+# the database (check_ins + interventions go too) so we never leave stray
+# rows pointing at a habit that doesn't exist.
+# ----------------------------------------------------------------------------
 
 @app.route('/add_habit', methods=['POST'])
 def add_habit():
@@ -815,5 +1135,12 @@ def delete_habit(habit_id):
     return redirect(url_for('home'))
 
 
+# ============================================================================
+# SECTION 9 — Boot
+# ============================================================================
+# Only fires when you run `python app.py` directly (not when something else
+# imports this file). debug=True turns on Flask's auto-reload and rich error
+# pages — handy for development, and you'd flip it off for a real deploy.
+# ============================================================================
 if __name__ == '__main__':
     app.run(debug=True)

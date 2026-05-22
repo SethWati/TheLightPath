@@ -1,6 +1,28 @@
-{# Single habit card. Used both at first render (looped in index.html) and as the
-   template the AJAX layer mirrors in JavaScript when it appends a freshly added
-   habit. Keep markup changes in sync with renderHabitCard() in index.html. #}
+{#
+   _habit_card.html — one card for one habit
+   ==========================================
+   This little partial is rendered once per habit and gets re-used in two
+   places: Jinja loops over it on first page render, AND the JavaScript card
+   factory in index.html mirrors the same markup whenever the user adds a
+   new habit via AJAX.
+
+   Why two copies? Because the page is server-rendered first (matches the
+   report's MVC story), but everything afterwards is dynamic via fetch().
+   The mirror in JS keeps the same shape so the user can't tell the
+   difference between a server-rendered card and a JS-injected one.
+
+   The card has, top to bottom:
+     - habit name + delete button + category badge + SMART target
+     - "Today's" status badge and the current streak
+     - The risk meter (model's predicted failure %)
+     - The 30-day sparkline (one tiny square per day)
+     - The two big action buttons: "I did it ✨"  /  "× I missed today"
+     - The small Reset and "Need advice now" buttons
+     - The intervention card (only visible when at-risk)
+
+   If you change anything in here, change the JS card factory too —
+   keeping them in sync is the only rule.
+#}
 <div class="col-md-6 mb-4 habit-col" data-habit-id="{{ h.id }}">
     <div class="card h-100 lp-clickable" tabindex="0" role="button" aria-label="View detail for {{ h.name }}">
         <div class="card-body">
@@ -47,8 +69,16 @@
             </div>
             <div class="lp-history-legend">Your last 30 days. The brighter three cells guide today&rsquo;s call.</div>
 
-            <div class="lp-checkin-wrap mt-3" {% if h.today_status == 1 %}style="display:none"{% endif %}>
-                <button type="button" class="btn btn-outline-success btn-sm w-100 fw-bold shadow-sm lp-checkin">&check; I did it &#x2728;</button>
+            <div class="lp-checkin-wrap mt-3 d-flex gap-2" {% if h.today_status == 1 %}style="display:none"{% endif %}>
+                <button type="button" class="btn btn-outline-success btn-sm fw-bold shadow-sm lp-checkin flex-grow-1">&check; I did it &#x2728;</button>
+                <button type="button" class="btn btn-outline-danger btn-sm fw-bold shadow-sm lp-missed flex-grow-1">&times; I missed today</button>
+            </div>
+            <div class="mt-2 d-flex gap-2 justify-content-between align-items-center" style="font-size: 0.78rem;">
+                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 lp-reset"
+                        title="Clear today's entry so you can pick again"
+                        {% if h.today_status is none %}style="display:none"{% endif %}>&#x21BA; Reset</button>
+                <button type="button" class="btn btn-outline-warning btn-sm py-0 px-2 lp-force-nudge"
+                        title="Show me an encouragement right now">&#x1F4A1; Need advice now</button>
             </div>
 
             <div class="lp-intervention-wrap" {% if not h.at_risk %}style="display:none"{% endif %}>
@@ -56,19 +86,15 @@
                     <strong>A little nudge for you.</strong>
                     You&rsquo;re drifting &mdash; let&rsquo;s pull you back on the path.
                 </div>
-                {% if h.intervention %}
-                    <div class="intervention shadow-sm lp-intervention-card">
-                        <strong class="lp-intervention-type">{{ h.intervention.type | replace('_', ' ') | title }}:</strong>
-                        <span class="lp-intervention-msg">{{ h.intervention.message }}</span>
-                        <div class="lp-intervention-source-wrap" {% if not h.intervention.source %}style="display:none"{% endif %}>
-                            <br><small class="text-muted">&mdash; <span class="lp-intervention-source">{{ h.intervention.source or '' }}</span></small>
-                        </div>
+                {# Intervention card. Always rendered, even when intervention
+                   is None — JS will populate or hide it via applyHabitView. #}
+                <div class="intervention shadow-sm lp-intervention-card" {% if not h.intervention %}style="display:none"{% endif %}>
+                    <strong class="lp-intervention-type">{{ (h.intervention.type | replace('_', ' ') | title) if h.intervention else '' }}:</strong>
+                    <span class="lp-intervention-msg">{{ h.intervention.message if h.intervention else '' }}</span>
+                    <div class="lp-intervention-source-wrap" {% if not h.intervention or not h.intervention.source %}style="display:none"{% endif %}>
+                        <br><small class="text-muted">&mdash; <span class="lp-intervention-source">{{ h.intervention.source if h.intervention and h.intervention.source else '' }}</span></small>
                     </div>
-                {% else %}
-                    <div class="alert alert-warning mt-2 mb-0 shadow-sm lp-intervention-missing">
-                        Nothing in the encouragement library for <em>{{ h.category }}</em> yet.
-                    </div>
-                {% endif %}
+                </div>
             </div>
         </div>
     </div>
